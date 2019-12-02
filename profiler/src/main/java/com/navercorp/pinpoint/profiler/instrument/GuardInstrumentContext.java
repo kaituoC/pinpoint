@@ -23,6 +23,7 @@ import com.navercorp.pinpoint.bootstrap.instrument.transformer.TransformCallback
 import com.navercorp.pinpoint.bootstrap.interceptor.scope.InterceptorScope;
 
 import java.io.InputStream;
+import java.security.ProtectionDomain;
 
 /**
  * @author Woonduk Kang(emeroad)
@@ -34,7 +35,7 @@ public class GuardInstrumentContext implements InstrumentContext {
 
     public GuardInstrumentContext(InstrumentContext instrumentContext) {
         if (instrumentContext == null) {
-            throw new NullPointerException("instrumentContext must not be null");
+            throw new NullPointerException("instrumentContext");
         }
 
         this.instrumentContext = instrumentContext;
@@ -42,15 +43,15 @@ public class GuardInstrumentContext implements InstrumentContext {
 
 
     @Override
-    public InstrumentClass getInstrumentClass(ClassLoader classLoader, String className, byte[] classfileBuffer) {
+    public InstrumentClass getInstrumentClass(ClassLoader classLoader, String className, ProtectionDomain protectionDomain, byte[] classfileBuffer) {
         checkOpen();
-        return instrumentContext.getInstrumentClass(classLoader, className, classfileBuffer);
+        return instrumentContext.getInstrumentClass(classLoader, className, protectionDomain, classfileBuffer);
     }
 
     @Override
-    public boolean exist(ClassLoader classLoader, String className) {
+    public boolean exist(ClassLoader classLoader, String className, ProtectionDomain protectionDomain) {
         checkOpen();
-        return instrumentContext.exist(classLoader, className);
+        return instrumentContext.exist(classLoader, className, protectionDomain);
     }
 
     @Override
@@ -78,9 +79,27 @@ public class GuardInstrumentContext implements InstrumentContext {
     }
 
     @Override
+    public void addClassFileTransformer(ClassLoader classLoader, String targetClassName, String transformCallbackClass) {
+        checkOpen();
+        instrumentContext.addClassFileTransformer(classLoader, targetClassName, transformCallbackClass);
+    }
+
+    @Override
     public void addClassFileTransformer(Matcher matcher, TransformCallback transformCallback) {
         checkOpen();
         instrumentContext.addClassFileTransformer(matcher, transformCallback);
+    }
+
+    @Override
+    public void addClassFileTransformer(Matcher matcher, String transformCallbackClassName) {
+        checkOpen();
+        instrumentContext.addClassFileTransformer(matcher, transformCallbackClassName);
+    }
+
+    @Override
+    public void addClassFileTransformer(Matcher matcher, String transformCallbackClassName, Object[] parameters, Class<?>[] parameterType) {
+        checkOpen();
+        instrumentContext.addClassFileTransformer(matcher, transformCallbackClassName, parameters, parameterType);
     }
 
     @Override

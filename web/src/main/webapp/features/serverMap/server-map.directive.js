@@ -87,7 +87,8 @@
 
 	                function extractMergeTypeList( serverMapData ) {
 	                	serverMapData.nodeDataArray.forEach( function( o ) {
-	                		if ( o.isWas === false && ( angular.isUndefined( o.isQueue ) || o.isQueue === false ) && o.serviceType !== "USER" ) {
+	                		// if ( o.isWas === false && ( angular.isUndefined( o.isQueue ) || o.isQueue === false ) && o.serviceType !== "USER" ) {
+							if ( o.isWas === false && o.serviceType !== "USER" ) {
 	                			if ( angular.isUndefined( scope.mergeStatus[o.serviceType] ) ) {
 		                			scope.mergeTypeList.push( o.serviceType );
 		                			scope.mergeStatus[o.serviceType] = true;
@@ -377,7 +378,7 @@
 	                    var selectedNode;
 	                    for( var i = 0 ; i < htLastMergedMapData.nodeDataArray.length ; i++ ) {
 	                    	var node = htLastMergedMapData.nodeDataArray[i];
-							if ( node.applicationName === query.applicationName ) {
+							if ( node.applicationName === query.applicationName && node.serviceType === query.serviceTypeName ) {
 								selectedNode = node;
 								options.sBoldKey = node.key;
 								break;
@@ -403,25 +404,26 @@
 						reloadRealtimeServerMap( query );
 	                }
 	                function reloadRealtimeServerMap() {
-
-	                	var reloadRequestRepeatingTime = 5000;
-	                	var reloadRequestTimeRange = 300000;
-						if ( SystemConfigService.get("enableServerMapRealTime") === true && scope.oNavbarVoService.isRealtime() ) {
-							$timeout(function() {
-								if ( scope.oNavbarVoService.isRealtime() ) {
-									htLastQuery.to = htLastQuery.to + reloadRequestRepeatingTime;
-									htLastQuery.from = htLastQuery.from - reloadRequestTimeRange;
-									ServerMapDaoService.getServerMapData(htLastQuery, function (err, query, mapData) {
-										if ( scope.oNavbarVoService.isRealtime() ) {
-											htLastMapData = mapData;
-											var serverMapData = ServerMapDaoService.extractDataFromApplicationMapData(mapData.applicationMapData);
-											extractMergeTypeList(serverMapData);
-											serverMapCallback(query, serverMapData, scope.linkRouting, scope.linkCurve, true);
-										}
-									});
-								}
-							}, reloadRequestRepeatingTime);
-						}
+						var reloadRequestRepeatingTime = 5000;
+						var reloadRequestTimeRange = 300000;
+	                	SystemConfigService.getConfig().then(function(config) {
+							if ( config["enableServerMapRealTime"] === true && scope.oNavbarVoService.isRealtime() ) {
+								$timeout(function() {
+									if ( scope.oNavbarVoService.isRealtime() ) {
+										htLastQuery.to = htLastQuery.to + reloadRequestRepeatingTime;
+										htLastQuery.from = htLastQuery.to - reloadRequestTimeRange;
+										ServerMapDaoService.getServerMapData(htLastQuery, function (err, query, mapData) {
+											if ( scope.oNavbarVoService.isRealtime() ) {
+												htLastMapData = mapData;
+												var serverMapData = ServerMapDaoService.extractDataFromApplicationMapData(mapData.applicationMapData);
+												extractMergeTypeList(serverMapData);
+												serverMapCallback(query, serverMapData, scope.linkRouting, scope.linkCurve, true);
+											}
+										});
+									}
+								}, reloadRequestRepeatingTime);
+							}
+						});
 					}
 	                function showOverview() {
 	                	return /^\/main/.test( $location.path() );
@@ -531,7 +533,7 @@
 	                    scope.$broadcast('serverMapDirective.openFilteredMap', oServerMapFilterVoService, oServerMapHintVoService);
 	                    reset();
 	                };
-	                scope.openFilterWizard = function () {
+	                scope.openFilterWizard2 = function () {
 	                	AnalyticsService.send(AnalyticsService.CONST.CONTEXT, AnalyticsService.CONST.CLK_FILTER_TRANSACTION_WIZARD);
 	                    openFilterWizard();
 	                };

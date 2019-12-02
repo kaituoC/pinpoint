@@ -1,11 +1,11 @@
 /*
- * Copyright 2016 Naver Corp.
+ * Copyright 2018 NAVER Corp.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ * http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -17,26 +17,24 @@
 package com.navercorp.pinpoint.plugin.activemq.client;
 
 import com.navercorp.pinpoint.common.trace.AnnotationKey;
-import com.navercorp.pinpoint.common.trace.AnnotationKeyFactory;
-import com.navercorp.pinpoint.common.trace.AnnotationKeyProperty;
+import com.navercorp.pinpoint.common.trace.AnnotationKeyProvider;
 import com.navercorp.pinpoint.common.trace.ServiceType;
-import com.navercorp.pinpoint.common.trace.ServiceTypeFactory;
-
-import static com.navercorp.pinpoint.common.trace.ServiceTypeProperty.QUEUE;
-import static com.navercorp.pinpoint.common.trace.ServiceTypeProperty.RECORD_STATISTICS;
+import com.navercorp.pinpoint.common.trace.ServiceTypeProvider;
 
 /**
  * @author HyunGil Jeong
  */
-public interface ActiveMQClientConstants {
+public final class ActiveMQClientConstants {
+    private ActiveMQClientConstants() {
+    }
 
-    ServiceType ACTIVEMQ_CLIENT = ServiceTypeFactory.of(8310, "ACTIVEMQ_CLIENT", QUEUE, RECORD_STATISTICS);
-    ServiceType ACTIVEMQ_CLIENT_INTERNAL = ServiceTypeFactory.of(8311, "ACTIVEMQ_CLIENT_INTERNAL", "ACTIVEMQ_CLIENT");
+    public static final ServiceType ACTIVEMQ_CLIENT = ServiceTypeProvider.getByCode(8310);
+    public static final ServiceType ACTIVEMQ_CLIENT_INTERNAL = ServiceTypeProvider.getByName("ACTIVEMQ_CLIENT_INTERNAL");
 
-    AnnotationKey ACTIVEMQ_BROKER_URL = AnnotationKeyFactory.of(101, "activemq.broker.address", AnnotationKeyProperty.VIEW_IN_RECORD_SET);
-    AnnotationKey ACTIVEMQ_MESSAGE = AnnotationKeyFactory.of(102, "activemq.message", AnnotationKeyProperty.VIEW_IN_RECORD_SET);
+    public static final AnnotationKey ACTIVEMQ_BROKER_URL = AnnotationKeyProvider.getByCode(101);
+    public static final AnnotationKey ACTIVEMQ_MESSAGE = AnnotationKeyProvider.getByCode(102);
 
-    String UNKNOWN_ADDRESS = "Unknown";
+    public static final String UNKNOWN_ADDRESS = "Unknown";
 
-    String ACTIVEMQ_CLIENT_SCOPE = "ActiveMQClientScope";
+    public static final String ACTIVEMQ_CLIENT_SCOPE = "ActiveMQClientScope";
 }

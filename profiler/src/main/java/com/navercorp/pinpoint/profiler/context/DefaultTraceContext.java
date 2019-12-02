@@ -1,11 +1,11 @@
 /*
- * Copyright 2014 NAVER Corp.
+ * Copyright 2018 NAVER Corp.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ * http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -17,7 +17,6 @@
 package com.navercorp.pinpoint.profiler.context;
 
 import com.navercorp.pinpoint.bootstrap.config.ProfilerConfig;
-import com.navercorp.pinpoint.bootstrap.context.AsyncTraceId;
 import com.navercorp.pinpoint.bootstrap.context.MethodDescriptor;
 import com.navercorp.pinpoint.bootstrap.context.ParsingResult;
 import com.navercorp.pinpoint.bootstrap.context.ServerMetaDataHolder;
@@ -28,7 +27,6 @@ import com.navercorp.pinpoint.bootstrap.plugin.jdbc.JdbcContext;
 import com.navercorp.pinpoint.common.annotations.InterfaceAudience;
 import com.navercorp.pinpoint.common.util.Assert;
 import com.navercorp.pinpoint.profiler.AgentInformation;
-
 import com.navercorp.pinpoint.profiler.context.id.TraceIdFactory;
 import com.navercorp.pinpoint.profiler.metadata.ApiMetaDataService;
 import com.navercorp.pinpoint.profiler.metadata.SqlMetaDataService;
@@ -49,8 +47,6 @@ public class DefaultTraceContext implements TraceContext {
     private final TraceIdFactory traceIdFactory;
     private final TraceFactory traceFactory;
 
-    private final AsyncTraceContext asyncTraceContext;
-
     private final AgentInformation agentInformation;
 
     private final ApiMetaDataService apiMetaDataService;
@@ -67,26 +63,24 @@ public class DefaultTraceContext implements TraceContext {
                                final AgentInformation agentInformation,
                                final TraceIdFactory traceIdFactory,
                                final TraceFactory traceFactory,
-                               final AsyncTraceContext asyncTraceContext,
                                final ServerMetaDataHolder serverMetaDataHolder,
                                final ApiMetaDataService apiMetaDataService,
                                final StringMetaDataService stringMetaDataService,
                                final SqlMetaDataService sqlMetaDataService,
                                final JdbcContext jdbcContext
     ) {
-        this.profilerConfig = Assert.requireNonNull(profilerConfig, "profilerConfig must not be null");
-        this.agentInformation = Assert.requireNonNull(agentInformation, "agentInformation must not be null");
-        this.serverMetaDataHolder = Assert.requireNonNull(serverMetaDataHolder, "serverMetaDataHolder must not be null");
+        this.profilerConfig = Assert.requireNonNull(profilerConfig, "profilerConfig");
+        this.agentInformation = Assert.requireNonNull(agentInformation, "agentInformation");
+        this.serverMetaDataHolder = Assert.requireNonNull(serverMetaDataHolder, "serverMetaDataHolder");
 
-        this.traceIdFactory = Assert.requireNonNull(traceIdFactory, "traceIdFactory must not be null");
-        this.traceFactory = Assert.requireNonNull(traceFactory, "traceFactory must not be null");
-        this.asyncTraceContext = Assert.requireNonNull(asyncTraceContext, "asyncTraceContextProvider must not be null");
+        this.traceIdFactory = Assert.requireNonNull(traceIdFactory, "traceIdFactory");
+        this.traceFactory = Assert.requireNonNull(traceFactory, "traceFactory");
 
-        this.jdbcContext = Assert.requireNonNull(jdbcContext, "jdbcContext must not be null");
+        this.jdbcContext = Assert.requireNonNull(jdbcContext, "jdbcContext");
 
-        this.apiMetaDataService = Assert.requireNonNull(apiMetaDataService, "apiMetaDataService must not be null");
-        this.stringMetaDataService = Assert.requireNonNull(stringMetaDataService, "stringMetaDataService must not be null");
-        this.sqlMetaDataService = Assert.requireNonNull(sqlMetaDataService, "sqlMetaDataService must not be null");
+        this.apiMetaDataService = Assert.requireNonNull(apiMetaDataService, "apiMetaDataService");
+        this.stringMetaDataService = Assert.requireNonNull(stringMetaDataService, "stringMetaDataService");
+        this.sqlMetaDataService = Assert.requireNonNull(sqlMetaDataService, "sqlMetaDataService");
     }
 
     /**
@@ -149,10 +143,7 @@ public class DefaultTraceContext implements TraceContext {
         return traceFactory.continueAsyncTraceObject(traceId);
     }
 
-    @Override
-    public Trace continueAsyncTraceObject(AsyncTraceId asyncTraceId, int asyncId, long startTime) {
-        return asyncTraceContext.continueAsyncTraceObject(asyncTraceId, asyncId, startTime).get();
-    }
+
 
 
     @Override
@@ -221,7 +212,7 @@ public class DefaultTraceContext implements TraceContext {
     @Override
     public TraceId createTraceId(final String transactionId, final long parentSpanId, final long spanId, final short flags) {
         if (transactionId == null) {
-            throw new NullPointerException("transactionId must not be null");
+            throw new NullPointerException("transactionId");
         }
         // TODO Should handle exception when parsing failed.
         return traceIdFactory.continueTraceId(transactionId, parentSpanId, spanId, flags);
@@ -242,10 +233,6 @@ public class DefaultTraceContext implements TraceContext {
         return this.serverMetaDataHolder;
     }
 
-    @Override
-    public int getAsyncId() {
-        return this.asyncTraceContext.nextAsyncId();
-    }
 
     @Override
     public JdbcContext getJdbcContext() {

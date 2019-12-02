@@ -17,8 +17,9 @@
 package com.navercorp.pinpoint.collector.dao.hbase.stat;
 
 import com.navercorp.pinpoint.collector.dao.AgentStatDaoV2;
-import com.navercorp.pinpoint.common.hbase.HBaseTables;
 import com.navercorp.pinpoint.common.hbase.HbaseOperations2;
+import com.navercorp.pinpoint.common.hbase.HbaseTable;
+import com.navercorp.pinpoint.common.hbase.TableNameProvider;
 import com.navercorp.pinpoint.common.server.bo.serializer.stat.AgentStatHbaseOperationFactory;
 import com.navercorp.pinpoint.common.server.bo.serializer.stat.AgentStatUtils;
 import com.navercorp.pinpoint.common.server.bo.serializer.stat.DataSourceSerializer;
@@ -26,7 +27,9 @@ import com.navercorp.pinpoint.common.server.bo.stat.AgentStatType;
 import com.navercorp.pinpoint.common.server.bo.stat.DataSourceBo;
 import com.navercorp.pinpoint.common.server.bo.stat.DataSourceListBo;
 import com.navercorp.pinpoint.common.util.CollectionUtils;
+
 import org.apache.commons.collections.map.MultiKeyMap;
+import org.apache.hadoop.hbase.TableName;
 import org.apache.hadoop.hbase.client.Put;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -49,6 +52,9 @@ public class HbaseDataSourceListDao implements AgentStatDaoV2<DataSourceListBo> 
     private HbaseOperations2 hbaseTemplate;
 
     @Autowired
+    private TableNameProvider tableNameProvider;
+
+    @Autowired
     private AgentStatHbaseOperationFactory agentStatHbaseOperationFactory;
 
     @Autowired
@@ -57,7 +63,7 @@ public class HbaseDataSourceListDao implements AgentStatDaoV2<DataSourceListBo> 
     @Override
     public void insert(String agentId, List<DataSourceListBo> dataSourceListBos) {
         if (agentId == null) {
-            throw new NullPointerException("agentId must not be null");
+            throw new NullPointerException("agentId");
         }
         if (CollectionUtils.isEmpty(dataSourceListBos)) {
             return;
@@ -66,9 +72,10 @@ public class HbaseDataSourceListDao implements AgentStatDaoV2<DataSourceListBo> 
         List<DataSourceListBo> reorderedDataSourceListBos = reorderDataSourceListBos(dataSourceListBos);
         List<Put> activeTracePuts = this.agentStatHbaseOperationFactory.createPuts(agentId, AgentStatType.DATASOURCE, reorderedDataSourceListBos, dataSourceSerializer);
         if (!activeTracePuts.isEmpty()) {
-            List<Put> rejectedPuts = this.hbaseTemplate.asyncPut(HBaseTables.AGENT_STAT_VER2, activeTracePuts);
+            TableName agentStatTableName = tableNameProvider.getTableName(HbaseTable.AGENT_STAT_VER2);
+            List<Put> rejectedPuts = this.hbaseTemplate.asyncPut(agentStatTableName, activeTracePuts);
             if (CollectionUtils.hasLength(rejectedPuts)) {
-                this.hbaseTemplate.put(HBaseTables.AGENT_STAT_VER2, rejectedPuts);
+                this.hbaseTemplate.put(agentStatTableName, rejectedPuts);
             }
         }
     }

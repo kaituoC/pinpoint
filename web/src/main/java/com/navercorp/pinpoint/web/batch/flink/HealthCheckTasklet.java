@@ -15,8 +15,6 @@
  */
 package com.navercorp.pinpoint.web.batch.flink;
 
-import com.navercorp.pinpoint.web.alarm.AlarmMessageSender;
-import com.navercorp.pinpoint.web.alarm.EmptyMessageSender;
 import com.navercorp.pinpoint.web.batch.BatchConfiguration;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -47,9 +45,6 @@ public class HealthCheckTasklet implements Tasklet {
     @Autowired
     private BatchConfiguration batchConfiguration;
 
-    @Autowired(required=false)
-    private AlarmMessageSender alarmMessageSender = new EmptyMessageSender();
-
     public HealthCheckTasklet() {
         this.jobNameList = new ArrayList<>(1);
         jobNameList.add("Aggregation Stat Data");
@@ -59,13 +54,13 @@ public class HealthCheckTasklet implements Tasklet {
     public RepeatStatus execute(StepContribution contribution, ChunkContext chunkContext) throws Exception {
         List<String> urlList = generatedFlinkManagerServerApi();
 
-        if (urlList.size() == 0) {
+        if (urlList.isEmpty()) {
             return RepeatStatus.FINISHED;
         }
 
         Map<String, Boolean> jobExecuteStatus = createjobExecuteStatus();
 
-        for(String url : urlList) {
+        for (String url : urlList) {
             try {
                 ResponseEntity<Map> responseEntity = this.restTemplate.exchange(url, HttpMethod.GET, null, Map.class);
 
@@ -95,12 +90,12 @@ public class HealthCheckTasklet implements Tasklet {
     }
 
     private void checkJobExecuteStatus(ResponseEntity<Map> responseEntity, Map<String, Boolean> jobExecuteStatus) {
-        Map<Object, Object> responseData = responseEntity.getBody();
-        List<Object> runningJob = (List<Object>)responseData.get("running");
+        Map<?, ?> responseData = responseEntity.getBody();
+        List<?> runningJob = (List<?>)responseData.get("running");
 
         if (runningJob != null) {
             for (Object job : runningJob) {
-                Map<String, Object> jobInfo = (Map<String, Object>)job;
+                Map<?, ?> jobInfo = (Map<?, ?>)job;
                 String jobName = (String) jobInfo.get("name");
 
                 Boolean status = jobExecuteStatus.get(jobName);
@@ -118,7 +113,7 @@ public class HealthCheckTasklet implements Tasklet {
         List<String> urlList = new ArrayList<>(flinkServerList.size());
 
         for (String flinkServerIp : flinkServerList) {
-            urlList.add(String.format("http://%s:8081/joboverview", flinkServerIp));
+            urlList.add(String.format(URL_FORMAT, flinkServerIp));
         }
 
         return urlList;

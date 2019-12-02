@@ -17,6 +17,7 @@
 package com.navercorp.pinpoint.profiler;
 
 import com.navercorp.pinpoint.common.trace.ServiceType;
+import com.navercorp.pinpoint.common.util.Assert;
 
 /**
  * @author emeroad
@@ -26,6 +27,7 @@ import com.navercorp.pinpoint.common.trace.ServiceType;
 public class DefaultAgentInformation implements AgentInformation {
     private final String agentId;
     private final String applicationName;
+    private final boolean isContainer;
     private final long startTime;
     private final int pid;
     private final String machineName;
@@ -37,6 +39,7 @@ public class DefaultAgentInformation implements AgentInformation {
     public DefaultAgentInformation(
             String agentId,
             String applicationName,
+            boolean isContainer,
             long startTime,
             int pid,
             String machineName,
@@ -44,27 +47,16 @@ public class DefaultAgentInformation implements AgentInformation {
             ServiceType serverType,
             String jvmVersion,
             String agentVersion) {
-        if (agentId == null) {
-            throw new NullPointerException("agentId must not be null");
-        }
-        if (applicationName == null) {
-            throw new NullPointerException("applicationName must not be null");
-        }
-        if (machineName == null) {
-            throw new NullPointerException("machineName must not be null");
-        }
-        if (agentVersion == null) {
-            throw new NullPointerException("version must not be null");
-        }
-        this.agentId = agentId;
-        this.applicationName = applicationName;
+        this.agentId = Assert.requireNonNull(agentId, "agentId");
+        this.applicationName = Assert.requireNonNull(applicationName, "applicationName");
+        this.isContainer = isContainer;
         this.startTime = startTime;
         this.pid = pid;
-        this.machineName = machineName;
+        this.machineName = Assert.requireNonNull(machineName, "machineName");
         this.hostIp = hostIp;
         this.serverType = serverType;
         this.jvmVersion = jvmVersion;
-        this.agentVersion = agentVersion;
+        this.agentVersion = Assert.requireNonNull(agentVersion, "agentVersion");
     }
 
     @Override
@@ -75,6 +67,11 @@ public class DefaultAgentInformation implements AgentInformation {
     @Override
     public String getApplicationName() {
         return applicationName;
+    }
+
+    @Override
+    public boolean isContainer() {
+        return isContainer;
     }
 
     @Override
@@ -112,12 +109,12 @@ public class DefaultAgentInformation implements AgentInformation {
         return agentVersion;
     }
 
-
     @Override
     public String toString() {
-        final StringBuilder sb = new StringBuilder("AgentInformation{");
+        final StringBuilder sb = new StringBuilder("DefaultAgentInformation{");
         sb.append("agentId='").append(agentId).append('\'');
         sb.append(", applicationName='").append(applicationName).append('\'');
+        sb.append(", isContainer=").append(isContainer);
         sb.append(", startTime=").append(startTime);
         sb.append(", pid=").append(pid);
         sb.append(", machineName='").append(machineName).append('\'');

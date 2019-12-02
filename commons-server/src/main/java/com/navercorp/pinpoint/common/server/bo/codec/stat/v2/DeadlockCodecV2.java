@@ -26,18 +26,19 @@ import com.navercorp.pinpoint.common.server.bo.codec.stat.header.BitCountingHead
 import com.navercorp.pinpoint.common.server.bo.codec.stat.strategy.StrategyAnalyzer;
 import com.navercorp.pinpoint.common.server.bo.codec.stat.strategy.UnsignedIntegerEncodingStrategy;
 import com.navercorp.pinpoint.common.server.bo.codec.strategy.EncodingStrategy;
-import com.navercorp.pinpoint.common.server.bo.stat.DeadlockBo;
+import com.navercorp.pinpoint.common.server.bo.stat.DeadlockThreadCountBo;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
-import org.springframework.util.Assert;
+
 
 import java.util.List;
+import java.util.Objects;
 
 /**
  * @author Taejin Koo
  */
 @Component("deadlockCodecV2")
-public class DeadlockCodecV2 extends AgentStatCodecV2<DeadlockBo> {
+public class DeadlockCodecV2 extends AgentStatCodecV2<DeadlockThreadCountBo> {
 
     @Autowired
     public DeadlockCodecV2(AgentStatDataPointCodec codec) {
@@ -45,13 +46,12 @@ public class DeadlockCodecV2 extends AgentStatCodecV2<DeadlockBo> {
     }
 
 
-    private static class DeadlockCodecFactory implements CodecFactory<DeadlockBo> {
+    private static class DeadlockCodecFactory implements CodecFactory<DeadlockThreadCountBo> {
 
         private final AgentStatDataPointCodec codec;
 
         private DeadlockCodecFactory(AgentStatDataPointCodec codec) {
-            Assert.notNull(codec, "codec must not be null");
-            this.codec = codec;
+            this.codec = Objects.requireNonNull(codec, "codec");
         }
 
         @Override
@@ -60,29 +60,28 @@ public class DeadlockCodecV2 extends AgentStatCodecV2<DeadlockBo> {
         }
 
         @Override
-        public CodecEncoder<DeadlockBo> createCodecEncoder() {
+        public CodecEncoder<DeadlockThreadCountBo> createCodecEncoder() {
             return new DeadlockCodecEncoder(codec);
         }
 
         @Override
-        public CodecDecoder<DeadlockBo> createCodecDecoder() {
+        public CodecDecoder<DeadlockThreadCountBo> createCodecDecoder() {
             return new DeadlockCodecDecoder(codec);
         }
     }
 
-    private static class DeadlockCodecEncoder implements AgentStatCodec.CodecEncoder<DeadlockBo> {
+    private static class DeadlockCodecEncoder implements AgentStatCodec.CodecEncoder<DeadlockThreadCountBo> {
 
         private final AgentStatDataPointCodec codec;
         private final UnsignedIntegerEncodingStrategy.Analyzer.Builder deadlockedThreadCountAnalyzerBuilder = new UnsignedIntegerEncodingStrategy.Analyzer.Builder();
 
         private DeadlockCodecEncoder(AgentStatDataPointCodec codec) {
-            Assert.notNull(codec, "codec must not be null");
-            this.codec = codec;
+            this.codec = Objects.requireNonNull(codec, "codec");
         }
 
         @Override
-        public void addValue(DeadlockBo deadlockBo) {
-            deadlockedThreadCountAnalyzerBuilder.addValue(deadlockBo.getDeadlockedThreadCount());
+        public void addValue(DeadlockThreadCountBo deadlockThreadCountBo) {
+            deadlockedThreadCountAnalyzerBuilder.addValue(deadlockThreadCountBo.getDeadlockedThreadCount());
         }
 
         @Override
@@ -102,15 +101,14 @@ public class DeadlockCodecV2 extends AgentStatCodecV2<DeadlockBo> {
 
     }
 
-    private static class DeadlockCodecDecoder implements AgentStatCodec.CodecDecoder<DeadlockBo> {
+    private static class DeadlockCodecDecoder implements AgentStatCodec.CodecDecoder<DeadlockThreadCountBo> {
 
         private final AgentStatDataPointCodec codec;
 
         private List<Integer> deadlockedThreadCountList;
 
         public DeadlockCodecDecoder(AgentStatDataPointCodec codec) {
-            Assert.notNull(codec, "codec must not be null");
-            this.codec = codec;
+            this.codec = Objects.requireNonNull(codec, "codec");
         }
 
         @Override
@@ -122,10 +120,10 @@ public class DeadlockCodecV2 extends AgentStatCodecV2<DeadlockBo> {
         }
 
         @Override
-        public DeadlockBo getValue(int index) {
-            DeadlockBo deadlockBo = new DeadlockBo();
-            deadlockBo.setDeadlockedThreadCount(deadlockedThreadCountList.get(index));
-            return deadlockBo;
+        public DeadlockThreadCountBo getValue(int index) {
+            DeadlockThreadCountBo deadlockThreadCountBo = new DeadlockThreadCountBo();
+            deadlockThreadCountBo.setDeadlockedThreadCount(deadlockedThreadCountList.get(index));
+            return deadlockThreadCountBo;
         }
 
     }

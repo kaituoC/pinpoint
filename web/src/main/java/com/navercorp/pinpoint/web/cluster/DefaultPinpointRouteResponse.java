@@ -1,11 +1,11 @@
 /*
- * Copyright 2017 NAVER Corp.
+ * Copyright 2018 NAVER Corp.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ * http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -16,6 +16,7 @@
 
 package com.navercorp.pinpoint.web.cluster;
 
+import com.navercorp.pinpoint.io.request.Message;
 import com.navercorp.pinpoint.thrift.dto.command.TCommandTransferResponse;
 import com.navercorp.pinpoint.thrift.dto.command.TRouteResult;
 import com.navercorp.pinpoint.thrift.io.DeserializerFactory;
@@ -33,6 +34,7 @@ public class DefaultPinpointRouteResponse implements PinpointRouteResponse {
 
     private TRouteResult routeResult;
     private TBase response;
+    private String message;
 
     private boolean isParsed;
 
@@ -47,7 +49,7 @@ public class DefaultPinpointRouteResponse implements PinpointRouteResponse {
                 return;
             }
 
-            TBase object = deserialize(commandDeserializerFactory, payload, null);
+            TBase<?, ?> object = deserialize(commandDeserializerFactory, payload, null);
 
             if (object == null) {
                 routeResult = TRouteResult.NOT_SUPPORTED_RESPONSE;
@@ -61,6 +63,7 @@ public class DefaultPinpointRouteResponse implements PinpointRouteResponse {
                 }
 
                 response = deserialize(commandDeserializerFactory, commandResponse.getPayload(), null);
+                message = commandResponse.getMessage();
             } else {
                 routeResult = TRouteResult.UNKNOWN;
                 response = object;
@@ -79,6 +82,11 @@ public class DefaultPinpointRouteResponse implements PinpointRouteResponse {
     public TBase getResponse() {
         assertParsed();
         return response;
+    }
+
+    @Override
+    public String getMessage() {
+        return message;
     }
 
     @Override
@@ -109,8 +117,12 @@ public class DefaultPinpointRouteResponse implements PinpointRouteResponse {
         }
     }
 
-    private TBase deserialize(DeserializerFactory<HeaderTBaseDeserializer> commandDeserializerFactory, byte[] objectData, TBase defaultValue) {
-        return SerializationUtils.deserialize(objectData, commandDeserializerFactory, defaultValue);
+    private TBase<?, ?> deserialize(DeserializerFactory<HeaderTBaseDeserializer> commandDeserializerFactory, byte[] objectData, Message<TBase<?, ?>> defaultValue) {
+        final Message<TBase<?, ?>> message = SerializationUtils.deserialize(objectData, commandDeserializerFactory, defaultValue);
+        if (message == null) {
+            return null;
+        }
+        return message.getData();
     }
 
 

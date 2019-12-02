@@ -15,12 +15,15 @@
  */
 package com.navercorp.pinpoint.flink.process;
 
-import com.navercorp.pinpoint.common.hbase.HBaseTables;
+import com.navercorp.pinpoint.common.hbase.HbaseTableConstatns;
 import com.navercorp.pinpoint.common.hbase.HbaseTemplate2;
+import com.navercorp.pinpoint.common.hbase.TableNameProvider;
 import com.navercorp.pinpoint.common.server.util.RowKeyUtils;
 import com.navercorp.pinpoint.common.util.TimeUtils;
 import com.navercorp.pinpoint.web.mapper.AgentInfoMapper;
 import com.navercorp.pinpoint.web.vo.AgentInfo;
+
+import org.apache.hadoop.hbase.TableName;
 import org.apache.hadoop.hbase.client.Get;
 import org.apache.hadoop.hbase.util.Bytes;
 import org.slf4j.Logger;
@@ -28,6 +31,8 @@ import org.slf4j.LoggerFactory;
 import org.springframework.cache.annotation.Cacheable;
 
 import java.util.Objects;
+
+import static com.navercorp.pinpoint.common.hbase.HbaseColumnFamily.AGENTINFO_INFO;
 
 /**
  * @author minwoo.jung
@@ -42,22 +47,26 @@ public class ApplicationCache {
 
     private final transient HbaseTemplate2 hbaseTemplate2;
 
+    private final transient TableNameProvider tableNameProvider;
 
-    public ApplicationCache(HbaseTemplate2 hbaseTemplate2) {
-        this.hbaseTemplate2 = Objects.requireNonNull(hbaseTemplate2, "hbaseTemplate must not be null");
+    public ApplicationCache(HbaseTemplate2 hbaseTemplate2, TableNameProvider tableNameProvider) {
+        this.hbaseTemplate2 = Objects.requireNonNull(hbaseTemplate2, "hbaseTemplate");
+        this.tableNameProvider = Objects.requireNonNull(tableNameProvider, "tableNameProvider");
     }
 
     @Cacheable(value="applicationId", key=SPEL_KEY)
     public String findApplicationId(ApplicationKey application) {
         final String agentId = application.getAgentId();
         final long agentStartTimestamp = application.getAgentStartTime();
-        final byte[] rowKey = RowKeyUtils.concatFixedByteAndLong(Bytes.toBytes(agentId), HBaseTables.AGENT_NAME_MAX_LEN, TimeUtils.reverseTimeMillis(agentStartTimestamp));
+        final byte[] rowKey = RowKeyUtils.concatFixedByteAndLong(Bytes.toBytes(agentId), HbaseTableConstatns.AGENT_NAME_MAX_LEN, TimeUtils.reverseTimeMillis(agentStartTimestamp));
 
         Get get = new Get(rowKey);
-        get.addColumn(HBaseTables.AGENTINFO_CF_INFO, HBaseTables.AGENTINFO_CF_INFO_IDENTIFIER);
+
+        get.addColumn(AGENTINFO_INFO.getName(), AGENTINFO_INFO.QUALIFIER_IDENTIFIER);
         AgentInfo agentInfo = null;
         try {
-            agentInfo = hbaseTemplate2.get(HBaseTables.AGENTINFO, get, agentInfoMapper);
+            TableName tableName = tableNameProvider.getTableName(AGENTINFO_INFO.getTable());
+            agentInfo = hbaseTemplate2.get(tableName, get, agentInfoMapper);
         } catch (Exception e) {
             logger.error("can't found application id({})", agentId, e);
         }

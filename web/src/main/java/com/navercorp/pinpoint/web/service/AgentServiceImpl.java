@@ -1,11 +1,11 @@
 /*
- * Copyright 2017 NAVER Corp.
+ * Copyright 2018 NAVER Corp.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ * http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -16,19 +16,21 @@
 
 package com.navercorp.pinpoint.web.service;
 
+import com.navercorp.pinpoint.io.request.Message;
 import com.navercorp.pinpoint.rpc.Future;
 import com.navercorp.pinpoint.rpc.PinpointSocket;
 import com.navercorp.pinpoint.rpc.ResponseMessage;
+import com.navercorp.pinpoint.rpc.packet.stream.StreamCode;
 import com.navercorp.pinpoint.rpc.stream.ClientStreamChannel;
-import com.navercorp.pinpoint.rpc.stream.ClientStreamChannelContext;
-import com.navercorp.pinpoint.rpc.stream.ClientStreamChannelMessageListener;
-import com.navercorp.pinpoint.rpc.stream.StreamChannelStateChangeEventHandler;
+import com.navercorp.pinpoint.rpc.stream.ClientStreamChannelEventHandler;
+import com.navercorp.pinpoint.rpc.stream.StreamException;
 import com.navercorp.pinpoint.rpc.util.ListUtils;
 import com.navercorp.pinpoint.thrift.dto.command.TCmdActiveThreadCount;
 import com.navercorp.pinpoint.thrift.dto.command.TCmdActiveThreadCountRes;
 import com.navercorp.pinpoint.thrift.dto.command.TCommandTransfer;
 import com.navercorp.pinpoint.thrift.dto.command.TRouteResult;
 import com.navercorp.pinpoint.thrift.io.DeserializerFactory;
+import com.navercorp.pinpoint.thrift.io.HeaderTBaseDeserializer;
 import com.navercorp.pinpoint.thrift.io.HeaderTBaseSerializer;
 import com.navercorp.pinpoint.thrift.io.SerializerFactory;
 import com.navercorp.pinpoint.thrift.util.SerializationUtils;
@@ -40,6 +42,7 @@ import com.navercorp.pinpoint.web.vo.AgentActiveThreadCount;
 import com.navercorp.pinpoint.web.vo.AgentActiveThreadCountFactory;
 import com.navercorp.pinpoint.web.vo.AgentActiveThreadCountList;
 import com.navercorp.pinpoint.web.vo.AgentInfo;
+
 import org.apache.thrift.TBase;
 import org.apache.thrift.TException;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -72,13 +75,14 @@ public class AgentServiceImpl implements AgentService {
     private ClusterManager clusterManager;
 
     @Autowired
+    @Qualifier("commandHeaderTBaseSerializerFactory")
     private SerializerFactory<HeaderTBaseSerializer> commandSerializerFactory;
 
     @Autowired
     @Qualifier("commandHeaderTBaseDeserializerFactory")
-    private DeserializerFactory commandDeserializerFactory;
+    private DeserializerFactory<HeaderTBaseDeserializer> commandDeserializerFactory;
 
-    @Value("#{pinpointWebProps['web.activethread.activeAgent.duration.days'] ?: 7}")
+    @Value("${web.activethread.activeAgent.duration.days:7}")
     private void setTimeDiffMs(int durationDays) {
         this.timeDiffMs = TimeUnit.MILLISECONDS.convert(durationDays, TimeUnit.DAYS);
     }
@@ -245,32 +249,20 @@ public class AgentServiceImpl implements AgentService {
     }
 
     @Override
-    public ClientStreamChannelContext openStream(AgentInfo agentInfo, TBase<?, ?> tBase, ClientStreamChannelMessageListener messageListener) throws TException {
+    public ClientStreamChannel openStream(AgentInfo agentInfo, TBase<?, ?> tBase, ClientStreamChannelEventHandler streamChannelEventHandler) throws TException, StreamException {
         byte[] payload = serializeRequest(tBase);
-        return openStream(agentInfo, payload, messageListener, null);
+        return openStream(agentInfo, payload, streamChannelEventHandler);
     }
 
     @Override
-    public ClientStreamChannelContext openStream(AgentInfo agentInfo, byte[] payload, ClientStreamChannelMessageListener messageListener) throws TException {
-        return openStream(agentInfo, payload, messageListener, null);
-    }
-
-    @Override
-    public ClientStreamChannelContext openStream(AgentInfo agentInfo, TBase<?, ?> tBase, ClientStreamChannelMessageListener messageListener, StreamChannelStateChangeEventHandler<ClientStreamChannel> stateChangeListener) throws TException {
-        byte[] payload = serializeRequest(tBase);
-        return openStream(agentInfo, payload, messageListener, stateChangeListener);
-    }
-
-    @Override
-    public ClientStreamChannelContext openStream(AgentInfo agentInfo, byte[] payload, ClientStreamChannelMessageListener messageListener, StreamChannelStateChangeEventHandler<ClientStreamChannel> stateChangeListener) throws TException {
+    public ClientStreamChannel openStream(AgentInfo agentInfo, byte[] payload, ClientStreamChannelEventHandler streamChannelEventHandler) throws TException, StreamException {
         TCommandTransfer transferObject = createCommandTransferObject(agentInfo, payload);
         PinpointSocket socket = clusterManager.getSocket(agentInfo);
-
-        if (socket != null) {
-            return socket.openStream(serializeRequest(transferObject), messageListener, stateChangeListener);
+        if (socket == null) {
+            throw new StreamException(StreamCode.CONNECTION_NOT_FOUND);
         }
 
-        return null;
+        return socket.openStream(serializeRequest(transferObject), streamChannelEventHandler);
     }
 
     @Override
@@ -351,12 +343,20 @@ public class AgentServiceImpl implements AgentService {
 
     @Override
     public TBase<?, ?> deserializeResponse(byte[] objectData) throws TException {
-        return SerializationUtils.deserialize(objectData, commandDeserializerFactory);
+        Message<TBase<?, ?>> message = SerializationUtils.deserialize(objectData, commandDeserializerFactory);
+        if (message == null) {
+            return null;
+        }
+        return message.getData();
     }
 
     @Override
-    public TBase<?, ?> deserializeResponse(byte[] objectData, TBase<?, ?> defaultValue) {
-        return SerializationUtils.deserialize(objectData, commandDeserializerFactory, defaultValue);
+    public TBase<?, ?> deserializeResponse(byte[] objectData, Message<TBase<?, ?>> defaultValue) {
+        Message<TBase<?, ?>> message = SerializationUtils.deserialize(objectData, commandDeserializerFactory, defaultValue);
+        if (message == null) {
+            return null;
+        }
+        return message.getData();
     }
 
 }

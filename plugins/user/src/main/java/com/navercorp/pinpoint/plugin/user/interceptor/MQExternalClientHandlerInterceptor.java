@@ -41,10 +41,10 @@ public class MQExternalClientHandlerInterceptor implements AroundInterceptor {
 
     public MQExternalClientHandlerInterceptor(TraceContext traceContext, MethodDescriptor methodDescriptor) {
         if (traceContext == null) {
-            throw new NullPointerException("traceContext must not be null");
+            throw new NullPointerException("traceContext");
         }
         if (methodDescriptor == null) {
-            throw new NullPointerException("methodDescriptor must not be null");
+            throw new NullPointerException("methodDescriptor");
         }
         this.methodDescriptor = methodDescriptor;
     }
@@ -84,7 +84,6 @@ public class MQExternalClientHandlerInterceptor implements AroundInterceptor {
     public void after(Object target, Object[] args, Object result, Throwable throwable) {
         final AsyncContext asyncContext = getAsyncContext(args);
         if (asyncContext == null) {
-            logger.debug("AsyncContext not found");
             return;
         }
 

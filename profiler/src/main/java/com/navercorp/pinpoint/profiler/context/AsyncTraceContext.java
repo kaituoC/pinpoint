@@ -1,5 +1,5 @@
 /*
- * Copyright 2017 NAVER Corp.
+ * Copyright 2018 NAVER Corp.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,7 +16,6 @@
 
 package com.navercorp.pinpoint.profiler.context;
 
-import com.navercorp.pinpoint.bootstrap.context.AsyncTraceId;
 import com.navercorp.pinpoint.bootstrap.context.Trace;
 import com.navercorp.pinpoint.profiler.context.id.TraceRoot;
 
@@ -28,11 +27,9 @@ public interface AsyncTraceContext {
 
 //    Reference<Trace> continueAsyncTraceObject(TraceRoot traceRoot, int asyncId, short asyncSequence);
 
-    Reference<Trace> continueAsyncTraceObject(TraceRoot traceRoot, int asyncId, short asyncSequence);
+    Reference<Trace> continueAsyncTraceObject(TraceRoot traceRoot, LocalAsyncId localAsyncId);
 
-    Trace newAsyncTraceObject(TraceRoot traceRoot, int asyncId, short asyncSequence);
-
-    Reference<Trace> continueAsyncTraceObject(AsyncTraceId asyncTraceId, int asyncId, long startTime);
+    Trace newAsyncTraceObject(TraceRoot traceRoot, LocalAsyncId localAsyncId);
 
     Reference<Trace> currentRawTraceObject();
 
@@ -40,6 +37,5 @@ public interface AsyncTraceContext {
 
     void removeTraceObject();
 
-    int nextAsyncId();
 
 }

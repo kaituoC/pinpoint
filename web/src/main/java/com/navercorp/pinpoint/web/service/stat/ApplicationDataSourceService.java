@@ -16,7 +16,7 @@
 package com.navercorp.pinpoint.web.service.stat;
 
 import com.navercorp.pinpoint.common.server.bo.stat.join.JoinDataSourceListBo.DataSourceKey;
-import com.navercorp.pinpoint.common.service.ServiceTypeRegistryService;
+import com.navercorp.pinpoint.loader.service.ServiceTypeRegistryService;
 import com.navercorp.pinpoint.web.dao.ApplicationDataSourceDao;
 import com.navercorp.pinpoint.web.util.TimeWindow;
 import com.navercorp.pinpoint.web.vo.stat.AggreJoinDataSourceBo;
@@ -44,16 +44,16 @@ public class ApplicationDataSourceService {
 
     public List<StatChart> selectApplicationChart(String applicationId, TimeWindow timeWindow) {
         if (applicationId == null) {
-            throw new NullPointerException("applicationId must not be null");
+            throw new NullPointerException("applicationId");
         }
         if (timeWindow == null) {
-            throw new NullPointerException("timeWindow must not be null");
+            throw new NullPointerException("timeWindow");
         }
 
         List<StatChart> result = new ArrayList<>();
         List<AggreJoinDataSourceListBo> aggreJoinDataSourceListBoList = this.applicationDataSourceDao.getApplicationStatList(applicationId, timeWindow);
 
-        if (aggreJoinDataSourceListBoList.size() == 0) {
+        if (aggreJoinDataSourceListBoList.isEmpty()) {
             result.add(new ApplicationDataSourceChart(timeWindow, "", "", Collections.emptyList()));
             return result;
         }
@@ -77,19 +77,14 @@ public class ApplicationDataSourceService {
         for (AggreJoinDataSourceListBo aggreJoinDataSourceListBo : aggreJoinDataSourceListBoList) {
             for (AggreJoinDataSourceBo aggreJoinDataSourceBo : aggreJoinDataSourceListBo.getAggreJoinDataSourceBoList()) {
                 DataSourceKey dataSourceKey = new DataSourceKey(aggreJoinDataSourceBo.getUrl(), aggreJoinDataSourceBo.getServiceTypeCode());
-                List<AggreJoinDataSourceBo> aggreJoinDataSourceBoList = aggreJoinDataSourceBoMap.get(dataSourceKey);
-
-                if (aggreJoinDataSourceBoList == null) {
-                    aggreJoinDataSourceBoList = new ArrayList<>();
-                    aggreJoinDataSourceBoMap.put(dataSourceKey, aggreJoinDataSourceBoList);
-                }
+                List<AggreJoinDataSourceBo> aggreJoinDataSourceBoList = aggreJoinDataSourceBoMap.computeIfAbsent(dataSourceKey, k -> new ArrayList<>());
 
                 aggreJoinDataSourceBoList.add(aggreJoinDataSourceBo);
             }
         }
 
-        for(List<AggreJoinDataSourceBo> aggreJoinDataSourceBoList : aggreJoinDataSourceBoMap.values()) {
-            Collections.sort(aggreJoinDataSourceBoList, comparator);
+        for (List<AggreJoinDataSourceBo> aggreJoinDataSourceBoList : aggreJoinDataSourceBoMap.values()) {
+            aggreJoinDataSourceBoList.sort(comparator);
         }
 
         return aggreJoinDataSourceBoMap;

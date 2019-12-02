@@ -17,13 +17,16 @@
 package com.navercorp.pinpoint.collector.dao.hbase.stat;
 
 import com.navercorp.pinpoint.collector.dao.AgentStatDaoV2;
-import com.navercorp.pinpoint.common.hbase.HBaseTables;
 import com.navercorp.pinpoint.common.hbase.HbaseOperations2;
+import com.navercorp.pinpoint.common.hbase.HbaseTable;
+import com.navercorp.pinpoint.common.hbase.TableNameProvider;
 import com.navercorp.pinpoint.common.server.bo.serializer.stat.AgentStatHbaseOperationFactory;
 import com.navercorp.pinpoint.common.server.bo.serializer.stat.ResponseTimeSerializer;
 import com.navercorp.pinpoint.common.server.bo.stat.AgentStatType;
 import com.navercorp.pinpoint.common.server.bo.stat.ResponseTimeBo;
+
 import org.apache.commons.collections.CollectionUtils;
+import org.apache.hadoop.hbase.TableName;
 import org.apache.hadoop.hbase.client.Put;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Repository;
@@ -40,6 +43,9 @@ public class HbaseResponseTimeDao implements AgentStatDaoV2<ResponseTimeBo> {
     private HbaseOperations2 hbaseTemplate;
 
     @Autowired
+    private TableNameProvider tableNameProvider;
+
+    @Autowired
     private AgentStatHbaseOperationFactory agentStatHbaseOperationFactory;
 
     @Autowired
@@ -48,16 +54,17 @@ public class HbaseResponseTimeDao implements AgentStatDaoV2<ResponseTimeBo> {
     @Override
     public void insert(String agentId, List<ResponseTimeBo> responseTimeBos) {
         if (agentId == null) {
-            throw new NullPointerException("agentId must not be null");
+            throw new NullPointerException("agentId");
         }
         if (CollectionUtils.isEmpty(responseTimeBos)) {
             return;
         }
         List<Put> responseTimePuts = this.agentStatHbaseOperationFactory.createPuts(agentId, AgentStatType.RESPONSE_TIME, responseTimeBos, this.responseTimeSerializer);
         if (!responseTimePuts.isEmpty()) {
-            List<Put> rejectedPuts = this.hbaseTemplate.asyncPut(HBaseTables.AGENT_STAT_VER2, responseTimePuts);
+            TableName agentStatTableName = tableNameProvider.getTableName(HbaseTable.AGENT_STAT_VER2);
+            List<Put> rejectedPuts = this.hbaseTemplate.asyncPut(agentStatTableName, responseTimePuts);
             if (CollectionUtils.isNotEmpty(rejectedPuts)) {
-                this.hbaseTemplate.put(HBaseTables.AGENT_STAT_VER2, rejectedPuts);
+                this.hbaseTemplate.put(agentStatTableName, rejectedPuts);
             }
         }
     }

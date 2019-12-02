@@ -24,16 +24,18 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 
 import com.navercorp.pinpoint.bootstrap.config.DefaultProfilerConfig;
 import com.navercorp.pinpoint.bootstrap.config.ProfilerConfig;
 import com.navercorp.pinpoint.bootstrap.context.TraceContext;
 import com.navercorp.pinpoint.bootstrap.context.TraceId;
-import com.navercorp.pinpoint.profiler.context.MockApplicationContext;
 import com.navercorp.pinpoint.profiler.context.id.DefaultTransactionCounter;
 import com.navercorp.pinpoint.profiler.context.MockTraceContextFactory;
 import com.navercorp.pinpoint.profiler.context.id.IdGenerator;
+import com.navercorp.pinpoint.profiler.context.module.DefaultApplicationContext;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -58,7 +60,7 @@ public class ActiveTraceRepositoryTest {
     private TransactionCounter transactionCounter;
     private ActiveTraceRepository activeTraceRepository;
 
-    private MockApplicationContext applicationContext;
+    private DefaultApplicationContext applicationContext;
 
     @Before
     public void setUp() {
@@ -70,6 +72,7 @@ public class ActiveTraceRepositoryTest {
         Mockito.when(profilerConfig.getSamplingRate()).thenReturn(SAMPLING_RATE);
 
         this.applicationContext = MockTraceContextFactory.newMockApplicationContext(profilerConfig);
+        applicationContext.start();
 
         this.traceContext = applicationContext.getTraceContext();
         this.transactionCounter = new DefaultTransactionCounter(applicationContext.getInjector().getInstance(IdGenerator.class));
@@ -98,14 +101,22 @@ public class ActiveTraceRepositoryTest {
         final CountDownLatch executeLatch = new CountDownLatch(expectedTotalTransactionCount);
 
         // When
-        ListenableFuture<List<TraceThreadTuple>> futures = executeTransactions(awaitLatch, executeLatch, newTransactionCount, expectedSampledContinuationCount, expectedUnsampledContinuationCount);
-        executeLatch.await();
+        ExecutorService executorService = Executors.newFixedThreadPool(expectedTotalTransactionCount);
+        ListenableFuture<List<TraceThreadTuple>> futures = executeTransactions(
+                executorService, awaitLatch, executeLatch,
+                expectedSampledNewCount, expectedUnsampledNewCount, expectedSampledContinuationCount, expectedUnsampledContinuationCount);
+        executeLatch.await(5, TimeUnit.SECONDS);
         List<ActiveTraceSnapshot> activeTraceInfos = this.activeTraceRepository.snapshot();
         awaitLatch.countDown();
-        List<TraceThreadTuple> executedTraces = futures.get();
+        List<TraceThreadTuple> executedTraces = futures.get(5, TimeUnit.SECONDS);
         Map<Long, TraceThreadTuple> executedTraceMap = new HashMap<Long, TraceThreadTuple>(executedTraces.size());
         for (TraceThreadTuple tuple : executedTraces) {
             executedTraceMap.put(tuple.id, tuple);
+        }
+
+        executorService.shutdown();
+        if (!executorService.awaitTermination(5, TimeUnit.SECONDS)) {
+            executorService.shutdownNow();
         }
 
         // Then
@@ -123,11 +134,14 @@ public class ActiveTraceRepositoryTest {
         }
     }
 
-    private ListenableFuture<List<TraceThreadTuple>> executeTransactions(CountDownLatch awaitLatch, CountDownLatch executeLatch, int newTransactionCount, int sampledContinuationCount, int unsampledContinuationCount) {
-        final int totalTransactionCount = newTransactionCount + sampledContinuationCount + unsampledContinuationCount;
-        final ListeningExecutorService executor = MoreExecutors.listeningDecorator(Executors.newFixedThreadPool(totalTransactionCount));
+    private ListenableFuture<List<TraceThreadTuple>> executeTransactions(
+            ExecutorService executorService, CountDownLatch awaitLatch, CountDownLatch executeLatch,
+            int sampledNewCount, int unsampledNewCount, int sampledContinuationCount, int unsampledContinuationCount) {
+
+        int totalNewCount = sampledNewCount + unsampledNewCount;
+        final ListeningExecutorService executor = MoreExecutors.listeningDecorator(executorService);
         final List<ListenableFuture<TraceThreadTuple>> futures = new ArrayList<ListenableFuture<TraceThreadTuple>>();
-        for (int i = 0; i < newTransactionCount; i++) {
+        for (int i = 0; i < totalNewCount; i++) {
             futures.add(executeNewTrace(executor, awaitLatch, executeLatch));
         }
         for (int i = 0; i < sampledContinuationCount; i++) {
@@ -140,7 +154,7 @@ public class ActiveTraceRepositoryTest {
     }
 
     private ListenableFuture<TraceThreadTuple> executeNewTrace(ListeningExecutorService executorService, final CountDownLatch awaitLatch, final CountDownLatch executeLatch) {
-        return executorService.submit(new Callable<TraceThreadTuple>() {
+        Callable<TraceThreadTuple> task = new Callable<TraceThreadTuple>() {
             @Override
             public TraceThreadTuple call() throws Exception {
                 try {
@@ -152,7 +166,8 @@ public class ActiveTraceRepositoryTest {
                     traceContext.removeTraceObject();
                 }
             }
-        });
+        };
+        return (ListenableFuture<TraceThreadTuple>) executorService.submit(task);
     }
 
     private ListenableFuture<TraceThreadTuple> executeSampledContinuedTrace(ListeningExecutorService executorService, final CountDownLatch awaitLatch, final CountDownLatch executeLatch, final long id) {
@@ -195,7 +210,7 @@ public class ActiveTraceRepositoryTest {
 
         private TraceThreadTuple(Trace trace, long threadId) {
             if (trace == null) {
-                throw new NullPointerException("trace must not be null");
+                throw new NullPointerException("trace");
             }
             this.id = trace.getId();
             this.startTime = trace.getStartTime();

@@ -18,39 +18,28 @@ package com.navercorp.pinpoint.test;
 
 import com.google.inject.Inject;
 import com.google.inject.Provider;
-import com.navercorp.pinpoint.bootstrap.config.ProfilerConfig;
-import com.navercorp.pinpoint.bootstrap.instrument.DynamicTransformTrigger;
-import com.navercorp.pinpoint.profiler.instrument.InstrumentEngine;
+import com.navercorp.pinpoint.common.util.Assert;
+import com.navercorp.pinpoint.profiler.context.module.PluginClassLoader;
 import com.navercorp.pinpoint.profiler.plugin.PluginContextLoadResult;
+import com.navercorp.pinpoint.profiler.plugin.ProfilerPluginContextLoader;
 
 /**
  * @author Woonduk Kang(emeroad)
  */
 public class MockPluginContextLoadResultProvider implements Provider<PluginContextLoadResult> {
 
-    private final ProfilerConfig profilerConfig;
-    private final InstrumentEngine instrumentEngine;
-    private final DynamicTransformTrigger dynamicTransformTrigger;
+    private final ProfilerPluginContextLoader profilerPluginContextLoader;
+    private final ClassLoader pluginClassLoader;
 
     @Inject
-    public MockPluginContextLoadResultProvider(ProfilerConfig profilerConfig, InstrumentEngine instrumentEngine, DynamicTransformTrigger dynamicTransformTrigger) {
-        if (profilerConfig == null) {
-            throw new NullPointerException("profilerConfig must not be null");
-        }
-        if (instrumentEngine == null) {
-            throw new NullPointerException("instrumentEngine must not be null");
-        }
-        if (dynamicTransformTrigger == null) {
-            throw new NullPointerException("dynamicTransformTrigger must not be null");
-        }
-        this.profilerConfig = profilerConfig;
-        this.instrumentEngine = instrumentEngine;
-        this.dynamicTransformTrigger = dynamicTransformTrigger;
+    public MockPluginContextLoadResultProvider(ProfilerPluginContextLoader profilerPluginContextLoader, @PluginClassLoader ClassLoader pluginClassLoader) {
+        this.profilerPluginContextLoader = Assert.requireNonNull(profilerPluginContextLoader, "profilerPluginContextLoader");
+        this.pluginClassLoader = Assert.requireNonNull(pluginClassLoader, "pluginLoader");
     }
 
     @Override
     public PluginContextLoadResult get() {
-        return new MockPluginContextLoadResult(profilerConfig, instrumentEngine, dynamicTransformTrigger);
+        return new MockPluginContextLoadResult(profilerPluginContextLoader, pluginClassLoader);
     }
 
 

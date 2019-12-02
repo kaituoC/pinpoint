@@ -26,11 +26,11 @@ import com.navercorp.pinpoint.web.mapper.stat.sampling.sampler.AgentStatSampler;
 import com.navercorp.pinpoint.web.util.TimeWindow;
 import com.navercorp.pinpoint.web.vo.stat.SampledDataSource;
 import com.navercorp.pinpoint.web.vo.stat.SampledDataSourceList;
+
 import org.apache.hadoop.hbase.client.Result;
 import org.apache.hadoop.hbase.client.ResultScanner;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
@@ -80,11 +80,7 @@ public class SampledDataSourceResultExtractor implements ResultsExtractor<List<S
                 DataSourceBo first = ListUtils.getFirst(dataPoint.getList(), null);
                 int id = first.getId();
 
-                List<DataSourceBo> dataSourceBoList = dataSourceBoListMap.get(id);
-                if (dataSourceBoList == null) {
-                    dataSourceBoList = new ArrayList<>();
-                    dataSourceBoListMap.put(id, dataSourceBoList);
-                }
+                List<DataSourceBo> dataSourceBoList = dataSourceBoListMap.computeIfAbsent(id, k -> new ArrayList<>());
 
                 dataSourceBoList.addAll(dataPoint.getList());
             }
@@ -93,7 +89,7 @@ public class SampledDataSourceResultExtractor implements ResultsExtractor<List<S
     }
 
     private SampledDataSourceList getSampleData(List<DataSourceBo> dataSourceBoList) {
-        Collections.sort(dataSourceBoList, new Comparator<DataSourceBo>() {
+        dataSourceBoList.sort(new Comparator<DataSourceBo>() {
             @Override
             public int compare(DataSourceBo o1, DataSourceBo o2) {
                 return Long.compare(o2.getTimestamp(), o1.getTimestamp());

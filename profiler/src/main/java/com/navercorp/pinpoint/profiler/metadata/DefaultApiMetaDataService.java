@@ -1,5 +1,5 @@
 /*
- * Copyright 2017 NAVER Corp.
+ * Copyright 2019 NAVER Corp.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,30 +17,21 @@
 package com.navercorp.pinpoint.profiler.metadata;
 
 import com.navercorp.pinpoint.bootstrap.context.MethodDescriptor;
+import com.navercorp.pinpoint.common.util.Assert;
 import com.navercorp.pinpoint.profiler.sender.EnhancedDataSender;
-import com.navercorp.pinpoint.thrift.dto.TApiMetaData;
 
 /**
  * @author Woonduk Kang(emeroad)
  */
 public class DefaultApiMetaDataService implements ApiMetaDataService {
 
-    private final SimpleCache<String> apiCache = new SimpleCache<String>();
+    private final SimpleCache<String> apiCache;
 
-    private final String agentId;
-    private final long agentStartTime;
-    private final EnhancedDataSender enhancedDataSender;
+    private final EnhancedDataSender<Object> enhancedDataSender;
 
-    public DefaultApiMetaDataService(String agentId, long agentStartTime, EnhancedDataSender enhancedDataSender) {
-        if (agentId == null) {
-            throw new NullPointerException("agentId must not be null");
-        }
-        if (enhancedDataSender == null) {
-            throw new NullPointerException("enhancedDataSender must not be null");
-        }
-        this.agentId = agentId;
-        this.agentStartTime = agentStartTime;
-        this.enhancedDataSender = enhancedDataSender;
+    public DefaultApiMetaDataService(EnhancedDataSender<Object> enhancedDataSender, SimpleCache<String> apiCache) {
+        this.enhancedDataSender = Assert.requireNonNull(enhancedDataSender, "enhancedDataSender");
+        this.apiCache = Assert.requireNonNull(apiCache, "apiCache");
     }
 
     @Override
@@ -51,12 +42,7 @@ public class DefaultApiMetaDataService implements ApiMetaDataService {
         methodDescriptor.setApiId(result.getId());
 
         if (result.isNewValue()) {
-            final TApiMetaData apiMetadata = new TApiMetaData();
-            apiMetadata.setAgentId(agentId);
-            apiMetadata.setAgentStartTime(agentStartTime);
-
-            apiMetadata.setApiId(result.getId());
-            apiMetadata.setApiInfo(methodDescriptor.getApiDescriptor());
+            final ApiMetaData apiMetadata = new ApiMetaData(result.getId(), methodDescriptor.getApiDescriptor());
             apiMetadata.setLine(methodDescriptor.getLineNumber());
             apiMetadata.setType(methodDescriptor.getType());
 

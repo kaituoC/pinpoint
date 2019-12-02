@@ -1,11 +1,11 @@
 /*
- * Copyright 2017 NAVER Corp.
+ * Copyright 2018 NAVER Corp.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ * http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -16,25 +16,39 @@
 
 package com.navercorp.pinpoint.profiler.monitor.collector.datasource;
 
+import com.navercorp.pinpoint.common.util.Assert;
+import com.navercorp.pinpoint.common.util.CollectionUtils;
+import com.navercorp.pinpoint.profiler.monitor.collector.AgentStatMetricCollector;
+import com.navercorp.pinpoint.profiler.monitor.metric.datasource.DataSource;
 import com.navercorp.pinpoint.profiler.monitor.metric.datasource.DataSourceMetric;
-import com.navercorp.pinpoint.thrift.dto.TDataSourceList;
+import com.navercorp.pinpoint.profiler.monitor.metric.datasource.DataSourceMetricSnapshot;
+
+import java.util.List;
 
 /**
  * @author HyunGil Jeong
  */
-public class DefaultDataSourceMetricCollector implements DataSourceMetricCollector {
+public class DefaultDataSourceMetricCollector implements AgentStatMetricCollector<DataSourceMetricSnapshot> {
 
     private final DataSourceMetric dataSourceMetric;
 
     public DefaultDataSourceMetricCollector(DataSourceMetric dataSourceMetric) {
-        if (dataSourceMetric == null) {
-            throw new NullPointerException("dataSourceMetric must not be null");
-        }
-        this.dataSourceMetric = dataSourceMetric;
+        this.dataSourceMetric = Assert.requireNonNull(dataSourceMetric, "dataSourceMetric");
     }
 
     @Override
-    public TDataSourceList collect() {
-        return dataSourceMetric.dataSourceList();
+    public DataSourceMetricSnapshot collect() {
+        final List<DataSource> dataSources = dataSourceMetric.dataSourceList();
+
+        if (CollectionUtils.isEmpty(dataSources)) {
+            return new DataSourceMetricSnapshot();
+        }
+
+        final DataSourceMetricSnapshot dataSourceMetricSnapshot = new DataSourceMetricSnapshot();
+        for (DataSource dataSource : dataSources) {
+            dataSourceMetricSnapshot.addDataSourceCollectData(dataSource);
+        }
+
+        return dataSourceMetricSnapshot;
     }
 }

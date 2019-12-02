@@ -17,13 +17,16 @@
 package com.navercorp.pinpoint.collector.dao.hbase.stat;
 
 import com.navercorp.pinpoint.collector.dao.AgentStatDaoV2;
-import com.navercorp.pinpoint.common.hbase.HBaseTables;
 import com.navercorp.pinpoint.common.hbase.HbaseOperations2;
+import com.navercorp.pinpoint.common.hbase.HbaseTable;
+import com.navercorp.pinpoint.common.hbase.TableNameProvider;
 import com.navercorp.pinpoint.common.server.bo.serializer.stat.AgentStatHbaseOperationFactory;
 import com.navercorp.pinpoint.common.server.bo.serializer.stat.CpuLoadSerializer;
 import com.navercorp.pinpoint.common.server.bo.stat.AgentStatType;
 import com.navercorp.pinpoint.common.server.bo.stat.CpuLoadBo;
+
 import org.apache.commons.collections.CollectionUtils;
+import org.apache.hadoop.hbase.TableName;
 import org.apache.hadoop.hbase.client.Put;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Repository;
@@ -40,6 +43,9 @@ public class HbaseCpuLoadDao implements AgentStatDaoV2<CpuLoadBo> {
     private HbaseOperations2 hbaseTemplate;
 
     @Autowired
+    private TableNameProvider tableNameProvider;
+
+    @Autowired
     private AgentStatHbaseOperationFactory agentStatHbaseOperationFactory;
 
     @Autowired
@@ -48,16 +54,17 @@ public class HbaseCpuLoadDao implements AgentStatDaoV2<CpuLoadBo> {
     @Override
     public void insert(String agentId, List<CpuLoadBo> cpuLoadBos) {
         if (agentId == null) {
-            throw new NullPointerException("agentId must not be null");
+            throw new NullPointerException("agentId");
         }
         if (CollectionUtils.isEmpty(cpuLoadBos)) {
             return;
         }
         List<Put> cpuLoadPuts = this.agentStatHbaseOperationFactory.createPuts(agentId, AgentStatType.CPU_LOAD, cpuLoadBos, this.cpuLoadSerializer);
         if (!cpuLoadPuts.isEmpty()) {
-            List<Put> rejectedPuts = this.hbaseTemplate.asyncPut(HBaseTables.AGENT_STAT_VER2, cpuLoadPuts);
+            TableName agentStatTableName = tableNameProvider.getTableName(HbaseTable.AGENT_STAT_VER2);
+            List<Put> rejectedPuts = this.hbaseTemplate.asyncPut(agentStatTableName, cpuLoadPuts);
             if (CollectionUtils.isNotEmpty(rejectedPuts)) {
-                this.hbaseTemplate.put(HBaseTables.AGENT_STAT_VER2, rejectedPuts);
+                this.hbaseTemplate.put(agentStatTableName, rejectedPuts);
             }
         }
     }

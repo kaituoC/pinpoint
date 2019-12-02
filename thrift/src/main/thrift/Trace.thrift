@@ -31,6 +31,11 @@ struct TIntBooleanIntBooleanValue {
     4: bool boolValue2;
 }
 
+struct TStringStringValue {
+     1: string stringValue1;
+     2: optional string stringValue2;
+}
+
 union TAnnotationValue {
     1: string stringValue
     2: bool boolValue;
@@ -44,11 +49,18 @@ union TAnnotationValue {
     10: TIntStringStringValue intStringStringValue;
     11: TLongIntIntByteByteStringValue longIntIntByteByteStringValue;
     12: TIntBooleanIntBooleanValue intBooleanIntBooleanValue;
+    13: TStringStringValue stringStringValue;
 }
 
 struct TAnnotation {
     1: i32 key,
     2: optional TAnnotationValue value
+}
+
+
+struct TLocalAsyncId {
+    1: i32 asyncId;
+    2: i32 sequence;
 }
 
 struct TSpanEvent {
@@ -63,7 +75,7 @@ struct TSpanEvent {
 
     10: optional i32 endElapsed = 0
 
-    11: optional string rpc
+    11: optional string rpc  ( deprecated )
     12: i16 serviceType
     13: optional string endPoint
 
@@ -77,9 +89,9 @@ struct TSpanEvent {
     25: optional i32 apiId;
     26: optional TIntStringValue exceptionInfo;
 
-    30: optional i32 asyncId;
+    30: optional i32 asyncId ( deprecated )
     31: optional i32 nextAsyncId;
-    32: optional i16 asyncSequence;
+    32: optional i16 asyncSequence ( deprecated )
 }
 
 struct TSpan {
@@ -153,6 +165,8 @@ struct TSpanChunk {
     12: optional i64 keyTime;
 
     13: optional i8 version = TRACE_V2;
+
+    14: optional TLocalAsyncId localAsyncId;
 }
 
 

@@ -18,11 +18,15 @@
 	            },
 	            link: function postLink(scope, element, attrs) {
 	                // initialize variables
-	            	var grid, dataView, lastAgent, startRow;
+	            	var grid, dataView, lastAgent, startRow, securityGuideUrl = "";
 	
 	                // initialize variables of methods
 	                var initialize, treeFormatter, treeFilter, parseData, execTimeFormatter,
 	                    getColorByString, progressBarFormatter, argumentFormatter, linkFormatter, hasChildNode, searchRowByTime, searchRowByWord, selectRow;
+
+	                SystemConfigService.getConfig().then(function(config) {
+						securityGuideUrl = config["securityGuideUrl"];
+					});
 	
 	                // bootstrap
 	                window.callStacks = []; // Due to Slick.Data.DataView, must use window property to resolve scope-related problems.
@@ -31,7 +35,7 @@
 						if ( text === undefined || text === null ) {
 							return "";
 						} else {
-							return text.replace(/</g, "&lt;").replace(/>/g, "$gt;");
+							return text.replace(/</g, "&lt;").replace(/>/g, "&gt;");
 						}
 					};
 					var getAuthorizeView = function( bIsAuthorized, text ) {
@@ -39,7 +43,7 @@
 						if ( bIsAuthorized ) {
 							return removeTag( text );
 						} else {
-							return "<i style='color:#AAA;'>" + removeTag( text ) + "</i> <a href='" + SystemConfigService.get("securityGuideUrl") + "' target='_blank' style='color:#AAA;'><span class='glyphicon glyphicon-share'></span></a>";
+							return "<i style='color:#AAA;'>" + removeTag( text ) + "</i> <a href='" + securityGuideUrl + "' target='_blank' style='color:#AAA;'><span class='glyphicon glyphicon-share'></span></a>";
 						}
 					};
 	                /**
@@ -89,36 +93,38 @@
 	
 	                    if (window.callStacks[idx + 1] && window.callStacks[idx + 1].indent > window.callStacks[idx].indent) {
 	                        if (dataContext._collapsed) {
-	                            html.push(" <span class='toggle expand'></span>&nbsp;");
+	                            html.push(" <span class='toggle expand' style='margin-right:3px'></span>");
 	                        } else {
-	                            html.push(" <span class='toggle collapse'></span>&nbsp;");
+	                            html.push(" <span class='toggle collapse' style='margin-right:3px'></span>");
 	                        }
 	                    } else {
-	                        html.push(" <span class='toggle'></span>&nbsp;");
+	                        html.push(" <span class='toggle' style='margin-right:3px'></span>");
 	                    }
 	
 	                    if (item.hasException) {
-	                        html.push('<span class="glyphicon glyphicon-fire"></span>&nbsp;');
+	                        html.push('<span class="glyphicon glyphicon-fire" style="margin-right:3px"></span>');
 	                    } else if (!item.isMethod) {
 	                    	if( item.method === "SQL" ) {
-	                    		html.push('<button type="button" class="btn btn-default btn-xs btn-success sql" style="padding:0px 2px 0px 2px"><span class="glyphicon glyphicon-eye-open sql"></span></button>&nbsp;');
+								html.push('<button type="button" class="btn btn-default btn-xs btn-success sql" style="padding:0px 2px 0px 2px;margin-right:3px;"><span class="glyphicon glyphicon-eye-open sql"></span></button>');
+							} else if( item.method === "MONGO-JSON" ) {
+	                    		html.push('<button type="button" class="btn btn-default btn-xs btn-success json" style="padding:0px 2px 0px 2px;margin-right:3px;"><span class="glyphicon glyphicon-eye-open json"></span></button>');
 	                    	} else {
-	                    		html.push('<span class="glyphicon glyphicon-info-sign"></span>&nbsp;');
+	                    		html.push('<span class="glyphicon glyphicon-info-sign" style="margin-right:3px"></span>');
 	                    	}
 	                        
 	                    } else {
 	                    	var itemMethodType = parseInt( item.methodType );
 	                    	switch( itemMethodType ) {
-	                    	case 100:
-	                    			html.push('<i class="xi-shipping"></i>&nbsp;');
-	                    			break;
-	                    	case 200:
-	                    			html.push('<span class="glyphicon glyphicon-transfer"></span>&nbsp;');
-	                    			break;
-	                    	case 900:
-	                    			html.push('<i class="xi-info-triangle" style="color:#FF6600"></i>&nbsp;');
-	                    			break;
-	                    	}
+                                case 100:
+                                    html.push('<i class="xi-shipping" style="margin-right:3px"></i>');
+                                    break;
+                                case 200:
+                                    html.push('<span class="glyphicon glyphicon-transfer" style="margin-right:3px"></span>');
+                                    break;
+                                case 900:
+                                    html.push('<i class="xi-info-triangle" style="color:#FF6600;margin-right:3px"></i>');
+                                    break;
+                            }
 	                    }
 	
 	                    html.push( getAuthorizeView( dataContext.isAuthorized, value ) );
@@ -354,12 +360,12 @@
 	                        if ( $(e.target).hasClass("sql") ) {
 	                        	item = dataView.getItem(args.row);
 	                        	var itemNext = dataView.getItem(args.row+1);
-	                        	var data = "sql=" + encodeURIComponent( item.argument );
+	                        	var data = "type=sql&metaData=" + encodeURIComponent( item.argument );
 
 								if ( item.isAuthorized ) {
 									if ( angular.isDefined( itemNext ) && itemNext.method === "SQL-BindValue" ) {
 										data += "&bind=" + encodeURIComponent( itemNext.argument );
-										CommonAjaxService.getSQLBind( "sqlBind.pinpoint", data, function( result ) {
+										CommonAjaxService.getSQLBind( "bind.pinpoint", data, function( result ) {
 											$("#customLogPopup").find("h4").html("SQL").end().find("div.modal-body").html(
 													'<h4>Binded SQL <button class="btn btn-default btn-xs sql">Copy</button></h4>' +
 													'<div style="position:absolute;left:10000px">' + result + '</div>' +
@@ -389,6 +395,44 @@
 									).end().modal("show");
 								}
 	                        }
+							if ( $(e.target).hasClass("json") ) {
+								item = dataView.getItem(args.row);
+								var itemNext = dataView.getItem(args.row+1);
+								var data = "type=mongoJson&metaData=" + encodeURIComponent( item.argument );
+
+								if ( item.isAuthorized ) {
+									if ( angular.isDefined( itemNext ) && itemNext.method === "MONGO-JSON-BindValue" ) {
+										data += "&bind=" + encodeURIComponent( itemNext.argument );
+										CommonAjaxService.getSQLBind( "bind.pinpoint", data, function( result ) {
+											$("#customLogPopup").find("h4").html("JSON").end().find("div.modal-body").html(
+												'<h4>Binded JSON <button class="btn btn-default btn-xs json">Copy</button></h4>' +
+												'<div style="position:absolute;left:10000px">' + result + '</div>' +
+												'<pre class="prettyprint lang-json" style="margin-top:0px">' + result.replace(/\t\t/g, "") + '</pre>' +
+												'<hr>' +
+												'<h4>Original JSON <button class="btn btn-default btn-xs sql">Copy</button></h4>' +
+												'<div style="position:absolute;left:10000px">' + item.argument + '</div>' +
+												'<pre class="prettyprint lang-json" style="margin-top:0px">' + item.argument.replace(/\t\t/g, "") + '</pre>' +
+												'<h4>JSON Bind Value <button class="btn btn-default btn-xs json">Copy</button></h4>' +
+												'<div style="position:absolute;left:10000px">' + itemNext.argument + '</div>' +
+												'<pre class="prettyprint lang-json" style="margin-top:0px">' + itemNext.argument + '</pre>'
+											).end().modal("show");
+											prettyPrint();
+										});
+									} else {
+										$("#customLogPopup").find("h4").html("JSON").end().find("div.modal-body").html(
+											'<h4>Original JSON <button class="btn btn-default btn-xs json">Copy</button></h4>' +
+											'<div style="position:absolute;left:10000px">' + item.argument + '</div>' +
+											'<pre class="prettyprint lang-json" style="margin-top:0px">' + item.argument.replace(/\t\t/g, "") + '</pre>'
+										).end().modal("show");
+										prettyPrint();
+									}
+								} else {
+									$("#customLogPopup").find("h4").html("JSON").end().find("div.modal-body").html(
+										'<h4>Original JSON</h4>' +
+										'<div style="margin-top:0px;padding:6px 10px;border-radius:4px;background-color:#C56A6A;color:#D7FBBA;">' + item.argument.replace(/\t\t/g, "") + '</div>'
+									).end().modal("show");
+								}
+							}
 	
 	                        if (!clickTimeout) {
 	                            clickTimeout = $timeout(function () {
@@ -578,7 +622,7 @@
 	                	grid.scrollRowIntoView( row, true );
 	                };
 	            }
-	        };
+	        }
 	    }
 	]);
 })();

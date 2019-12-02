@@ -17,6 +17,7 @@
 package com.navercorp.pinpoint.web.controller;
 
 import com.navercorp.pinpoint.common.PinpointConstants;
+import com.navercorp.pinpoint.common.server.util.AgentLifeCycleState;
 import com.navercorp.pinpoint.common.util.IdValidateUtils;
 import com.navercorp.pinpoint.web.service.AgentEventService;
 import com.navercorp.pinpoint.web.service.AgentInfoService;
@@ -25,7 +26,7 @@ import com.navercorp.pinpoint.web.vo.AgentEvent;
 import com.navercorp.pinpoint.web.vo.AgentInfo;
 import com.navercorp.pinpoint.web.vo.AgentInstallationInfo;
 import com.navercorp.pinpoint.web.vo.AgentStatus;
-import com.navercorp.pinpoint.web.vo.ApplicationAgentList;
+import com.navercorp.pinpoint.web.vo.ApplicationAgentsList;
 import com.navercorp.pinpoint.web.vo.CodeResult;
 import com.navercorp.pinpoint.web.vo.Range;
 import com.navercorp.pinpoint.web.vo.timeline.inspector.InspectorTimeline;
@@ -56,50 +57,82 @@ public class AgentInfoController {
 
     @RequestMapping(value = "/getAgentList", method = RequestMethod.GET, params = {"!application"})
     @ResponseBody
-    public ApplicationAgentList getAgentList() {
-        return this.agentInfoService.getApplicationAgentList(ApplicationAgentList.Key.APPLICATION_NAME);
+    public ApplicationAgentsList getAgentList() {
+        long timestamp = System.currentTimeMillis();
+        return getAgentList(timestamp);
     }
 
     @RequestMapping(value = "/getAgentList", method = RequestMethod.GET, params = {"!application", "from", "to"})
     @ResponseBody
-    public ApplicationAgentList getAgentList(
+    public ApplicationAgentsList getAgentList(
             @RequestParam("from") long from,
             @RequestParam("to") long to) {
-        return this.agentInfoService.getApplicationAgentList(ApplicationAgentList.Key.APPLICATION_NAME, to);
+        long timestamp = to;
+        return this.agentInfoService.getAllApplicationAgentsList(ApplicationAgentsList.Filter.NONE, timestamp);
     }
 
     @PreAuthorize("hasPermission(#applicationName, 'application', 'inspector')")
     @RequestMapping(value = "/getAgentList", method = RequestMethod.GET, params = {"!application", "timestamp"})
     @ResponseBody
-    public ApplicationAgentList getAgentList(
+    public ApplicationAgentsList getAgentList(
             @RequestParam("timestamp") long timestamp) {
-        return this.agentInfoService.getApplicationAgentList(ApplicationAgentList.Key.APPLICATION_NAME, timestamp);
+        return this.agentInfoService.getAllApplicationAgentsList(ApplicationAgentsList.Filter.NONE, timestamp);
     }
 
     @RequestMapping(value = "/getAgentList", method = RequestMethod.GET, params = {"application"})
     @ResponseBody
-    public ApplicationAgentList getAgentList(
-            @RequestParam("application") String applicationName) {
-        return this.agentInfoService.getApplicationAgentList(ApplicationAgentList.Key.HOST_NAME, applicationName);
+    public ApplicationAgentsList getAgentList(@RequestParam("application") String applicationName) {
+        long timestamp = System.currentTimeMillis();
+        return getAgentList(applicationName, timestamp);
     }
 
     @PreAuthorize("hasPermission(#applicationName, 'application', 'inspector')")
     @RequestMapping(value = "/getAgentList", method = RequestMethod.GET, params = {"application", "from", "to"})
     @ResponseBody
-    public ApplicationAgentList getAgentList(
+    public ApplicationAgentsList getAgentList(
             @RequestParam("application") String applicationName,
             @RequestParam("from") long from,
             @RequestParam("to") long to) {
-        return this.agentInfoService.getApplicationAgentList(ApplicationAgentList.Key.HOST_NAME, applicationName, to);
+        ApplicationAgentsList.Filter containerFilter = agentInfo -> {
+            if (!agentInfo.isContainer()) {
+                return ApplicationAgentsList.Filter.ACCEPT;
+            }
+            AgentStatus agentStatus = agentInfo.getStatus();
+            if (agentStatus == null) {
+                return ApplicationAgentsList.Filter.REJECT;
+            }
+            if (agentStatus.getState() == AgentLifeCycleState.RUNNING) {
+                return ApplicationAgentsList.Filter.ACCEPT;
+            }
+            if (agentStatus.getEventTimestamp() >= from) {
+                return ApplicationAgentsList.Filter.ACCEPT;
+            }
+            return ApplicationAgentsList.Filter.REJECT;
+        };
+        long timestamp = to;
+        return this.agentInfoService.getApplicationAgentsList(ApplicationAgentsList.GroupBy.HOST_NAME, containerFilter, applicationName, timestamp);
     }
 
     @PreAuthorize("hasPermission(#applicationName, 'application', 'inspector')")
     @RequestMapping(value = "/getAgentList", method = RequestMethod.GET, params = {"application", "timestamp"})
     @ResponseBody
-    public ApplicationAgentList getAgentList(
+    public ApplicationAgentsList getAgentList(
             @RequestParam("application") String applicationName,
             @RequestParam("timestamp") long timestamp) {
-        return this.agentInfoService.getApplicationAgentList(ApplicationAgentList.Key.HOST_NAME, applicationName, timestamp);
+        ApplicationAgentsList.Filter runningContainerFilter = agentInfo -> {
+            if (!agentInfo.isContainer()) {
+                return ApplicationAgentsList.Filter.ACCEPT;
+            }
+            AgentStatus agentStatus = agentInfo.getStatus();
+            if (agentStatus == null) {
+                return ApplicationAgentsList.Filter.REJECT;
+            }
+            if (agentStatus.getState() == AgentLifeCycleState.RUNNING) {
+                return ApplicationAgentsList.Filter.ACCEPT;
+            }
+            return ApplicationAgentsList.Filter.REJECT;
+        };
+        return this.agentInfoService.getApplicationAgentsList(ApplicationAgentsList.GroupBy.HOST_NAME, runningContainerFilter, applicationName, timestamp);
     }
 
     @RequestMapping(value = "/getAgentInfo", method = RequestMethod.GET)
@@ -147,7 +180,7 @@ public class AgentInfoController {
             @RequestParam("from") long from,
             @RequestParam("to") long to) {
         Range range = new Range(from, to);
-        return agentInfoService.getAgentStatusTimeline(agentId, range, null);
+        return agentInfoService.getAgentStatusTimeline(agentId, range);
     }
 
     @PreAuthorize("hasPermission(new com.navercorp.pinpoint.web.vo.AgentParam(#agentId, #to), 'agentParam', 'inspector')")

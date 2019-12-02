@@ -16,6 +16,7 @@
 package com.navercorp.pinpoint.profiler.instrument;
 
 import com.navercorp.pinpoint.bootstrap.interceptor.ExceptionHandleAroundInterceptor;
+import com.navercorp.pinpoint.bootstrap.interceptor.ExceptionHandler;
 import com.navercorp.pinpoint.profiler.instrument.interceptor.InterceptorDefinition;
 import com.navercorp.pinpoint.profiler.instrument.interceptor.InterceptorDefinitionFactory;
 import com.navercorp.pinpoint.profiler.instrument.mock.ApiIdAwareInterceptor;
@@ -24,6 +25,7 @@ import com.navercorp.pinpoint.profiler.instrument.mock.BaseEnum;
 import com.navercorp.pinpoint.profiler.instrument.mock.BasicInterceptor;
 import com.navercorp.pinpoint.profiler.instrument.mock.ExceptionInterceptor;
 import com.navercorp.pinpoint.profiler.instrument.mock.StaticInterceptor;
+import com.navercorp.pinpoint.profiler.interceptor.factory.ExceptionHandlerFactory;
 import com.navercorp.pinpoint.profiler.interceptor.registry.InterceptorRegistryBinder;
 import com.navercorp.pinpoint.profiler.util.TestInterceptorRegistryBinder;
 import org.junit.AfterClass;
@@ -50,6 +52,8 @@ import static org.junit.Assert.fail;
 public class ASMMethodNodeAdapterAddInterceptorTest {
     private final static InterceptorRegistryBinder interceptorRegistryBinder = new TestInterceptorRegistryBinder();
     private ASMClassNodeLoader.TestClassLoader classLoader;
+
+    private ExceptionHandlerFactory exceptionHandlerFactory = new ExceptionHandlerFactory(false);
 
     @BeforeClass
     public static void beforeClass() {
@@ -93,7 +97,8 @@ public class ASMMethodNodeAdapterAddInterceptorTest {
     @Ignore
     @Test
     public void addExceptionInterceptor() throws Exception {
-        ExceptionHandleAroundInterceptor interceptor = new ExceptionHandleAroundInterceptor(new ExceptionInterceptor());
+        ExceptionHandler exceptionHandler = exceptionHandlerFactory.getExceptionHandler();
+        ExceptionHandleAroundInterceptor interceptor = new ExceptionHandleAroundInterceptor(new ExceptionInterceptor(), exceptionHandler);
         int interceptorId = interceptorRegistryBinder.getInterceptorRegistryAdaptor().addInterceptor(interceptor);
         addInterceptor(interceptorId, ExceptionHandleAroundInterceptor.class);
     }
@@ -301,7 +306,7 @@ public class ASMMethodNodeAdapterAddInterceptorTest {
                 }
             } catch (Throwable t) {
                 if (!throwable) {
-                    throw new RuntimeException(t.getMessage());
+                    throw new RuntimeException(t.getMessage(), t);
                 }
             }
         } else {
@@ -313,8 +318,7 @@ public class ASMMethodNodeAdapterAddInterceptorTest {
                 }
             } catch (Throwable t) {
                 if (!throwable) {
-                    t.printStackTrace();
-                    throw new RuntimeException(t.getMessage());
+                    throw new RuntimeException(t.getMessage(), t);
                 }
             }
         }

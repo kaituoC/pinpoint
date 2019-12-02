@@ -16,17 +16,16 @@
 
 package com.navercorp.pinpoint.test;
 
-import com.navercorp.pinpoint.bootstrap.config.ProfilerConfig;
-import com.navercorp.pinpoint.bootstrap.instrument.DynamicTransformTrigger;
-import com.navercorp.pinpoint.profiler.instrument.InstrumentEngine;
+import com.navercorp.pinpoint.common.trace.ServiceType;
+import com.navercorp.pinpoint.common.util.Assert;
+import com.navercorp.pinpoint.loader.plugins.profiler.ProfilerPluginLoader;
 import com.navercorp.pinpoint.bootstrap.plugin.ApplicationTypeDetector;
 import com.navercorp.pinpoint.bootstrap.plugin.ProfilerPlugin;
 import com.navercorp.pinpoint.bootstrap.plugin.jdbc.JdbcUrlParserV2;
-import com.navercorp.pinpoint.common.plugin.PluginLoader;
-import com.navercorp.pinpoint.profiler.instrument.classloading.ClassInjector;
 import com.navercorp.pinpoint.profiler.plugin.PluginContextLoadResult;
-import com.navercorp.pinpoint.profiler.plugin.PluginSetup;
-import com.navercorp.pinpoint.profiler.plugin.SetupResult;
+import com.navercorp.pinpoint.profiler.plugin.PluginSetupResult;
+import com.navercorp.pinpoint.profiler.plugin.PluginsSetupResult;
+import com.navercorp.pinpoint.profiler.plugin.ProfilerPluginContextLoader;
 
 import java.lang.instrument.ClassFileTransformer;
 import java.util.ArrayList;
@@ -37,55 +36,35 @@ import java.util.List;
  * @author Woonduk Kang(emeroad)
  */
 public class MockPluginContextLoadResult implements PluginContextLoadResult {
-    private final ProfilerConfig profilerConfig;
-    private final InstrumentEngine instrumentEngine;
-    private final DynamicTransformTrigger dynamicTransformTrigger;
 
+    private final ProfilerPluginContextLoader profilerPluginContextLoader;
+    private final ClassLoader pluginClassLoader;
+    private PluginsSetupResult lazy;
 
-    private List<SetupResult> lazy;
-
-    public MockPluginContextLoadResult(ProfilerConfig profilerConfig, InstrumentEngine instrumentEngine, DynamicTransformTrigger dynamicTransformTrigger) {
-        if (profilerConfig == null) {
-            throw new NullPointerException("profilerConfig must not be null");
-        }
-        if (instrumentEngine == null) {
-            throw new NullPointerException("instrumentEngine must not be null");
-        }
-        if (dynamicTransformTrigger == null) {
-            throw new NullPointerException("dynamicTransformTrigger must not be null");
-        }
-        this.profilerConfig = profilerConfig;
-        this.instrumentEngine = instrumentEngine;
-        this.dynamicTransformTrigger = dynamicTransformTrigger;
+    public MockPluginContextLoadResult(ProfilerPluginContextLoader profilerPluginContextLoader, ClassLoader pluginClassLoader) {
+        this.profilerPluginContextLoader = Assert.requireNonNull(profilerPluginContextLoader, "profilerPluginConfigurer");
+        this.pluginClassLoader = Assert.requireNonNull(pluginClassLoader, "pluginClassLoader");
     }
 
-    private List<SetupResult> getProfilerPluginContextList() {
+    private PluginsSetupResult getPluginsSetupResult() {
         if (lazy == null) {
             lazy = load();
         }
         return lazy;
     }
 
-
-    private List<SetupResult> load() {
-
-        List<ProfilerPlugin> plugins = PluginLoader.load(ProfilerPlugin.class, ClassLoader.getSystemClassLoader());
-
-        List<SetupResult> pluginContexts = new ArrayList<SetupResult>();
-        ClassInjector classInjector = new TestProfilerPluginClassLoader();
-        PluginSetup pluginSetup = new MockPluginSetup(profilerConfig, instrumentEngine, dynamicTransformTrigger);
-        for (ProfilerPlugin plugin : plugins) {
-            SetupResult context = pluginSetup.setupPlugin(plugin, classInjector);
-            pluginContexts.add(context);
-        }
-        return pluginContexts;
+    private PluginsSetupResult load() {
+        ProfilerPluginLoader profilerPluginLoader = new ProfilerPluginLoader();
+        List<ProfilerPlugin> profilerPlugins = profilerPluginLoader.load(pluginClassLoader);
+        return profilerPluginContextLoader.load(profilerPlugins);
     }
 
 
     @Override
     public List<ClassFileTransformer> getClassFileTransformer() {
         List<ClassFileTransformer> classFileTransformerList = new ArrayList<ClassFileTransformer>();
-        for (SetupResult pluginContext : getProfilerPluginContextList()) {
+        PluginsSetupResult pluginsSetupResult = getPluginsSetupResult();
+        for (PluginSetupResult pluginContext : pluginsSetupResult.getPluginSetupResults()) {
             List<ClassFileTransformer> classFileTransformer = pluginContext.getClassTransformerList();
             classFileTransformerList.addAll(classFileTransformer);
         }
@@ -96,6 +75,12 @@ public class MockPluginContextLoadResult implements PluginContextLoadResult {
     @Override
     public List<ApplicationTypeDetector> getApplicationTypeDetectorList() {
         return Collections.emptyList();
+    }
+
+    @Override
+    public ServiceType getApplicationType() {
+        PluginsSetupResult pluginsSetupResult = getPluginsSetupResult();
+        return pluginsSetupResult.getApplicationType();
     }
 
     @Override

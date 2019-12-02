@@ -1,3 +1,12 @@
+---
+title: Separate Logging Per Request
+keywords: history
+last_updated: Feb 1, 2018
+sidebar: mydoc_sidebar
+permalink: perrequestfeatureguide.html
+disqus: false
+---
+
 # ENGLISH GUIDE
 
 ## Per-request logging
@@ -106,7 +115,7 @@ ex) With Pinpoint
 ```
 
 The transactionId printed in the log message is the same as the transactionId in Pinpoint Web’s Transaction List view.
-![per-request_feature_1.jpg](img/per-request_feature_1.jpg)
+![per-request_feature_1.jpg](images/per-request_feature_1.jpg)
 
 ### 2. How to configure
 
@@ -121,27 +130,26 @@ ex) pinpoint.config when using log4j
 # log4j
 ###########################################################
 profiler.log4j.logging.transactioninfo=true
+```
 
+ex) pinpoint.config when using log4j2
+```
 ###########################################################
-# logback
+# log4j2 
 ###########################################################
-profiler.logback.logging.transactioninfo=false
+profiler.log4j2.logging.transactioninfo=true
+
 ```
 
 ex) pinpoint.config when using logback
 ```
-###########################################################
-# log4j
-###########################################################
-profiler.log4j.logging.transactioninfo=false
-
 ###########################################################
 # logback
 ###########################################################
 profiler.logback.logging.transactioninfo=true
 ```
 
-**2-2 log4j, logback configuration**
+**2-2 log4j, log4j2, logback configuration**
 
 Change the log message format to print the transactionId, and spanId saved in MDC.
 
@@ -160,6 +168,23 @@ After
           <param name = "ConversionPattern" value= "%d{yyyy-MM-dd HH:mm:ss} [%-5p](%-30c{1}) [TxId : %X{PtxId} , SpanId : %X{PspanId}] %m%n" />
         </layout >
 </appender >
+```
+
+ex) log4j2 - log4j2.xml
+```xml
+Before
+<appender>
+     <console name="STDOUT" target="SYSTEM_OUT">
+          <PatternLayout pattern="%d{yyyy-MM-dd HH:mm:ss} [%-5p](%-30c{1}) %m%n""/>
+     </console>
+<appender>
+
+After
+<appender>
+     <console name="STDOUT" target="SYSTEM_OUT">
+          <PatternLayout pattern="%d{yyyy-MM-dd HH:mm:ss} [%-5p](%-30c{1}) [TxId : %X{PtxId} , SpanId : %X{PspanId}] %m%n""/>
+     </console>
+<appender>
 ```
 
 ex) logback : logback.xml
@@ -258,7 +283,7 @@ public class AppenderInterceptor implements AroundInterceptor0 {
 ```
 
 If those are correctly configured, the buttons are added in the transaction list view.
-![per-request_feature_2.jpg](img/per-request_feature_2.jpg)
+![per-request_feature_2.jpg](images/per-request_feature_2.jpg)
 
 For details in how the log buttons are generated, please refer to Pinpoint Web’s BusinessTransactionController and ScatterChartController.
 
@@ -270,18 +295,18 @@ For details in how the log buttons are generated, please refer to Pinpoint Web�
 
 ### 1. 기능 설명
 
-Pinpoint에서는 log message를 request 단위로 구분할 수 있도록 log message 에 추가정보를 저장 해준다.
+Pinpoint에서는 log message를 request 단위로 구분할 수 있도록 log message 에 추가정보를 저장해준다.
 
 다수의 요청을 처리하는 tomcat을 사용할 경우 로그 파일을 보면 시간순으로 출력된 로그를 확인할 수 있다.
 그러나 동시에 요청된 다수의 request 각각에 대한 로그를 구분 해서 볼 수 없다.
-예를 들어 로그에서 exception message가 출력됐을때 그 exception이 발생한 request의 모든 log를 확인 하기 힘들다.
+예를 들어 로그에서 exception message가 출력됐을 때 그 exception이 발생한 request의 모든 log를 확인하기 힘들다.
 
-Pinpoint는 로그 메세지 마다 request와 연관된 정보(transactionId, spanId)를 MDC에 넣어줘서 request 단위로 log message를 구분할 수 있도록 해준다.
-로그에 출력된 transactionId는 pinpoint web의 transaction List 화면에 출려된 transactionId와 일치한다.
+Pinpoint는 log message 마다 request와 연관된 정보(transactionId, spanId)를 MDC에 넣어줘서 request 단위로 log message를 구분할 수 있도록 해준다.
+로그에 출력된 transactionId는 pinpoint web의 transaction List 화면에 출력된 transactionId와 일치한다.
 
 구체적으로 예를 들어보자.
-Pinpoint를 사용하지 않았을때 exception이 발생했을 경우 로그 메시지를 살펴 보자.
-요청된 다수의 request 각각을 구분하여 로그를 확인 할 수가 없다.
+Pinpoint를 사용하지 않았을 때 exception이 발생했을 경우 로그 메시지를 살펴 보자.
+요청된 다수의 request 각각을 구분하여 로그를 확인할 수가 없다.
 
 ex) Without Pinpoint
 ```
@@ -376,13 +401,13 @@ ex) With Pinpoint
 ```
 
 로그메시지에 출력된 transactionId는 Pinpoint web의 transactionlist의 transactionId와 일치한다.
-![per-request_feature_1.jpg](img/per-request_feature_1.jpg)
+![per-request_feature_1.jpg](images/per-request_feature_1.jpg)
 
 ### 2. 설정 방법
 
 **2-1 Pinpoint agent 설정**
 
-Pinpoint를 사용하려면 Pinpoint agent 설정파일(Pinpoint.config)의 logging 설정 값을 true로 변경해야한다.
+Pinpoint를 사용하려면 Pinpoint agent 설정파일(Pinpoint.config)의 logging 설정 값을 true로 변경해야 한다.
 사용하는 logging 라이브러리에 해당하는 설정값만 true로 변경하면 된다.
 아래 설정에 대한 예시가 있다.
 
@@ -392,27 +417,26 @@ ex) Pinpoint.config  - log4j 를 사용할 경우
 # log4j
 ###########################################################
 profiler.log4j.logging.transactioninfo=true
+```
 
+ex) Pinpoint.config  - log4j2 를 사용할 경우
+```
 ###########################################################
-# logback
+# log4j2 
 ###########################################################
-profiler.logback.logging.transactioninfo=false
+profiler.log4j2.logging.transactioninfo=true
+
 ```
 
 ex) Pinpoint.config  - logback 를 사용할 경우
 ```
-###########################################################
-# log4j
-###########################################################
-profiler.log4j.logging.transactioninfo=false
-
 ###########################################################
 # logback
 ###########################################################
 profiler.logback.logging.transactioninfo=true
 ```
 
-**2-2 log4j, logback 설정 파일 설정**
+**2-2 log4j, log4j2, logback 설정 파일 설정**
 
 logging 설정 파일의 log message pattern 설정에 Pinpoint에서 MDC에 저장한 transactionId, spanId값이 출력될수 있도록 설정을 추가하자.
 
@@ -431,6 +455,23 @@ ex) log4j - log4j.xml
           <param name = "ConversionPattern" value= "%d{yyyy-MM-dd HH:mm:ss} [%-5p](%-30c{1}) [TxId : %X{PtxId} , SpanId : %X{PspanId}] %m%n" />
         </layout >
 </appender >
+```
+
+ex) log4j2 - log4j2.xml
+```xml
+변경 전
+<appender>
+     <console name="STDOUT" target="SYSTEM_OUT">
+          <PatternLayout pattern="%d{yyyy-MM-dd HH:mm:ss} [%-5p](%-30c{1}) %m%n""/>
+     </console>
+<appender>
+
+변경 후
+<appender>
+     <console name="STDOUT" target="SYSTEM_OUT">
+          <PatternLayout pattern="%d{yyyy-MM-dd HH:mm:ss} [%-5p](%-30c{1}) [TxId : %X{PtxId} , SpanId : %X{PspanId}] %m%n""/>
+     </console>
+<appender>
 ```
 
 ex) logback - logback.xml
@@ -499,7 +540,7 @@ log.button.name=log
 **step 3**
 pinpoint 1.5 이후 버전부터 log 기록 여부에 따라 log 버튼의 활성화가 결정되도록 개선 됐기 때문에
 당신이 사용하는 logging appender의 로깅 메소드에 logging 여부를 저장하는 interceptor를 추가하는 플러그인을 개발해야 한다.
-플러그인 개발 방법은 다음 링크를 참고하면 된다([Link](https://github.com/naver/pinpoint-plugin-sample)). interceptor 로직이 추가되야 하는 위치는 appender class 내에 LoggingEvent 객체의 데이터를 이용하여 로깅을 하는 메소드다.
+플러그인 개발 방법은 다음 링크를 참고하면 된다([Link](https://github.com/naver/pinpoint-plugin-sample)). interceptor 로직이 추가돼야 하는 위치는 appender class 내에 LoggingEvent 객체의 데이터를 이용하여 로깅을 하는 메소드다.
 아래는 interceptor 예제이다.
 ```
 public class AppenderInterceptor implements AroundInterceptor0 {
@@ -530,5 +571,5 @@ public class AppenderInterceptor implements AroundInterceptor0 {
 
 
 위와 같이 설정 및 구현을 추가하고 pinpoint web을 동작시키면 아래와 같이 버튼이 추가 된다.
-![per-request_feature_2.jpg](img/per-request_feature_2.jpg)
+![per-request_feature_2.jpg](images/per-request_feature_2.jpg)
 로그 버튼을 생성해주는 과정을 보시려면, Pinpoint Web의 BusinessTransactionController 와 ScatterChartController class를 참고하세요.

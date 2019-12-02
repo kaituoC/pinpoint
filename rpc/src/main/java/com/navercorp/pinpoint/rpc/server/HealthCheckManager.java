@@ -41,8 +41,6 @@ public class HealthCheckManager {
     private static final PingSimplePacket PING_PACKET = PingSimplePacket.PING_PACKET;
     private static final PingPacket LEGACY_PING_PACKET = PingPacket.PING_PACKET;
 
-    private static final long MAXIMUM_WAITING_TIME_MILLIS = 30 * 60 * 1000;
-
     private volatile boolean startMethodInvoked = false;
     private volatile boolean isStopped = false;
 
@@ -53,14 +51,10 @@ public class HealthCheckManager {
 
     private final WriteFailFutureListener writeFailListener = new WriteFailFutureListener(logger, "ping write fail.", "ping write success.");
 
-    public HealthCheckManager(Timer healthCheckTimer, ChannelGroup channelGroup) {
-        this(healthCheckTimer, MAXIMUM_WAITING_TIME_MILLIS, channelGroup);
-    }
-
     public HealthCheckManager(Timer timer, long waitTimeMillis, ChannelGroup channelGroup) {
-        Assert.requireNonNull(timer, "timer must not be null");
+        Assert.requireNonNull(timer, "timer");
         Assert.isTrue(waitTimeMillis > 0, "waitTimeMillis is must greater than 0");
-        Assert.requireNonNull(channelGroup, "channelGroup must not be null");
+        Assert.requireNonNull(channelGroup, "channelGroup");
 
         this.timer = timer;
         this.waitTimeMillis = waitTimeMillis;

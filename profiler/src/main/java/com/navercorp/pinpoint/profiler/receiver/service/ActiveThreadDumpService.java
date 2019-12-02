@@ -1,11 +1,11 @@
 /*
- * Copyright 2017 NAVER Corp.
+ * Copyright 2018 NAVER Corp.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ * http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -18,12 +18,15 @@ package com.navercorp.pinpoint.profiler.receiver.service;
 
 import com.navercorp.pinpoint.common.util.JvmUtils;
 import com.navercorp.pinpoint.profiler.context.active.ActiveTraceSnapshot;
+import com.navercorp.pinpoint.profiler.context.thrift.ThreadDumpThriftMessageConverter;
+import com.navercorp.pinpoint.profiler.monitor.metric.deadlock.ThreadDumpMetricSnapshot;
 import com.navercorp.pinpoint.profiler.receiver.ProfilerRequestCommandService;
 import com.navercorp.pinpoint.profiler.util.ThreadDumpUtils;
 import com.navercorp.pinpoint.thrift.dto.command.TActiveThreadDump;
 import com.navercorp.pinpoint.thrift.dto.command.TCmdActiveThreadDump;
 import com.navercorp.pinpoint.thrift.dto.command.TCmdActiveThreadDumpRes;
 import com.navercorp.pinpoint.thrift.dto.command.TThreadDump;
+import com.navercorp.pinpoint.thrift.io.TCommandType;
 import org.apache.thrift.TBase;
 
 import java.lang.management.ThreadInfo;
@@ -34,11 +37,12 @@ import java.util.List;
 /**
  * @author Taejin Koo
  */
-public class ActiveThreadDumpService implements ProfilerRequestCommandService {
+public class ActiveThreadDumpService implements ProfilerRequestCommandService<TBase<?, ?>, TBase<?, ?>> {
 
     static final String JAVA = "JAVA";
 
     private final ActiveThreadDumpCoreService activeThreadDumpCoreService;
+    private final ThreadDumpThriftMessageConverter threadDumpThriftMessageConverter = new ThreadDumpThriftMessageConverter();
 
     public ActiveThreadDumpService(ActiveThreadDumpCoreService activeThreadDumpCoreService) {
         this.activeThreadDumpCoreService = activeThreadDumpCoreService;
@@ -84,7 +88,8 @@ public class ActiveThreadDumpService implements ProfilerRequestCommandService {
         final ActiveTraceSnapshot activeTraceInfo = threadDump.getActiveTraceSnapshot();
         final ThreadInfo threadInfo = threadDump.getThreadInfo();
 
-        TThreadDump tThreadDump = ThreadDumpUtils.createTThreadDump(threadInfo);
+        final ThreadDumpMetricSnapshot threadDumpMetricSnapshot = ThreadDumpUtils.createThreadDump(threadInfo);
+        final TThreadDump tThreadDump = this.threadDumpThriftMessageConverter.toMessage(threadDumpMetricSnapshot);
 
         TActiveThreadDump activeThreadDump = new TActiveThreadDump();
         activeThreadDump.setStartTime(activeTraceInfo.getStartTime());
@@ -100,8 +105,8 @@ public class ActiveThreadDumpService implements ProfilerRequestCommandService {
     }
 
     @Override
-    public Class<? extends TBase> getCommandClazz() {
-        return TCmdActiveThreadDump.class;
+    public short getCommandServiceCode() {
+        return TCommandType.ACTIVE_THREAD_DUMP.getCode();
     }
 
 }

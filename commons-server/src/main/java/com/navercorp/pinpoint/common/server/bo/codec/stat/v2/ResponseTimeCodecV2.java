@@ -29,9 +29,9 @@ import com.navercorp.pinpoint.common.server.bo.codec.strategy.EncodingStrategy;
 import com.navercorp.pinpoint.common.server.bo.stat.ResponseTimeBo;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
-import org.springframework.util.Assert;
 
 import java.util.List;
+import java.util.Objects;
 
 /**
  * @author Taejin Koo
@@ -49,8 +49,7 @@ public class ResponseTimeCodecV2 extends AgentStatCodecV2<ResponseTimeBo> {
         private final AgentStatDataPointCodec codec;
 
         private ResponseTimeFactory(AgentStatDataPointCodec codec) {
-            Assert.notNull(codec, "codec must not be null");
-            this.codec = codec;
+            this.codec = Objects.requireNonNull(codec, "codec");
         }
 
         @Override
@@ -73,29 +72,33 @@ public class ResponseTimeCodecV2 extends AgentStatCodecV2<ResponseTimeBo> {
 
         private final AgentStatDataPointCodec codec;
         private final UnsignedLongEncodingStrategy.Analyzer.Builder avgAnalyzerBuilder = new UnsignedLongEncodingStrategy.Analyzer.Builder();
+        private final UnsignedLongEncodingStrategy.Analyzer.Builder maxAnalyzerBuilder = new UnsignedLongEncodingStrategy.Analyzer.Builder();
 
         public ResponseTimeCodecEncoder(AgentStatDataPointCodec codec) {
-            Assert.notNull(codec, "codec must not be null");
-            this.codec = codec;
+            this.codec = Objects.requireNonNull(codec, "codec");
         }
 
         @Override
         public void addValue(ResponseTimeBo agentStatDataPoint) {
             avgAnalyzerBuilder.addValue(agentStatDataPoint.getAvg());
+            maxAnalyzerBuilder.addValue(agentStatDataPoint.getMax());
         }
 
         @Override
         public void encode(Buffer valueBuffer) {
             StrategyAnalyzer<Long> avgStrategyAnalyzer = avgAnalyzerBuilder.build();
+            StrategyAnalyzer<Long> maxStrategyAnalyzer = maxAnalyzerBuilder.build();
 
             // encode header
             AgentStatHeaderEncoder headerEncoder = new BitCountingHeaderEncoder();
             headerEncoder.addCode(avgStrategyAnalyzer.getBestStrategy().getCode());
+            headerEncoder.addCode(maxStrategyAnalyzer.getBestStrategy().getCode());
 
             final byte[] header = headerEncoder.getHeader();
             valueBuffer.putPrefixedBytes(header);
             // encode values
             codec.encodeValues(valueBuffer, avgStrategyAnalyzer.getBestStrategy(), avgStrategyAnalyzer.getValues());
+            codec.encodeValues(valueBuffer, maxStrategyAnalyzer.getBestStrategy(), maxStrategyAnalyzer.getValues());
         }
 
     }
@@ -104,22 +107,30 @@ public class ResponseTimeCodecV2 extends AgentStatCodecV2<ResponseTimeBo> {
 
         private final AgentStatDataPointCodec codec;
         private List<Long> avgs;
+        private List<Long> maxs;
 
         public ResponseTimeCodecDecoder(AgentStatDataPointCodec codec) {
-            Assert.notNull(codec, "codec must not be null");
-            this.codec = codec;
+            this.codec = Objects.requireNonNull(codec, "codec");
         }
 
         @Override
         public void decode(Buffer valueBuffer, AgentStatHeaderDecoder headerDecoder, int valueSize) {
             EncodingStrategy<Long> avgEncodingStrategy = UnsignedLongEncodingStrategy.getFromCode(headerDecoder.getCode());
+            EncodingStrategy<Long> maxEncodingStrategy = UnsignedLongEncodingStrategy.getFromCode(headerDecoder.getCode());
+
             this.avgs = codec.decodeValues(valueBuffer, avgEncodingStrategy, valueSize);
+            if (valueBuffer.hasRemaining()) {
+                this.maxs = codec.decodeValues(valueBuffer, maxEncodingStrategy, valueSize);
+            }
         }
 
         @Override
         public ResponseTimeBo getValue(int index) {
             ResponseTimeBo responseTimeBo = new ResponseTimeBo();
             responseTimeBo.setAvg(avgs.get(index));
+            if (maxs != null) {
+                responseTimeBo.setMax(maxs.get(index));
+            }
             return responseTimeBo;
         }
 

@@ -96,7 +96,8 @@ module.exports = function( grunt, options ) {
 				'/time-slider.state-line.js',
 				'/time-slider.time-series-signboard.js',
 				'/time-slider.time-signboard.js',
-				'/time-slider.x-axis.js'
+				'/time-slider.x-axis.js',
+				'/time-slider.focus.js'
 			], options.RESOURCE_PATH.TIME_SLIDER ),
 			dest: options.RESOURCE_PATH.DEST_JS + '/time-slider.js'
 		},
@@ -157,6 +158,8 @@ module.exports = function( grunt, options ) {
 				'/common/services/tps-chart-dao.service.js',
 				'/common/services/active-thread-chart-dao.service.js',
 				'/common/services/response-time-chart-dao.service.js',
+				'/common/services/open-file-descriptor-chart-dao.service.js',
+				'/common/services/direct-buffer-chart-dao.service.js',
 				'/common/services/agent-histogram-dao.service.js',
 				'/common/services/filtered-map-util.service.js',
 				'/common/services/filter.config.js',

@@ -1,11 +1,11 @@
 /*
- * Copyright 2014 NAVER Corp.
+ * Copyright 2019 NAVER Corp.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ * http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -20,22 +20,26 @@ import com.navercorp.pinpoint.ProductInfo;
 import com.navercorp.pinpoint.bootstrap.Agent;
 import com.navercorp.pinpoint.bootstrap.AgentOption;
 import com.navercorp.pinpoint.bootstrap.config.ProfilerConfig;
-import com.navercorp.pinpoint.bootstrap.interceptor.InterceptorInvokerHelper;
+import com.navercorp.pinpoint.bootstrap.config.Profiles;
 import com.navercorp.pinpoint.bootstrap.logging.PLogger;
 import com.navercorp.pinpoint.bootstrap.logging.PLoggerBinder;
 import com.navercorp.pinpoint.bootstrap.logging.PLoggerFactory;
-import com.navercorp.pinpoint.common.service.ServiceTypeRegistryService;
+import com.navercorp.pinpoint.bootstrap.plugin.util.SocketAddressUtils;
+import com.navercorp.pinpoint.common.util.Assert;
+import com.navercorp.pinpoint.common.profiler.concurrent.PinpointThreadFactory;
 import com.navercorp.pinpoint.profiler.context.module.ApplicationContext;
 import com.navercorp.pinpoint.profiler.context.module.DefaultApplicationContext;
-import com.navercorp.pinpoint.profiler.util.SystemPropertyDumper;
-import com.navercorp.pinpoint.profiler.interceptor.registry.DefaultInterceptorRegistryBinder;
-import com.navercorp.pinpoint.profiler.interceptor.registry.InterceptorRegistryBinder;
+import com.navercorp.pinpoint.profiler.context.module.DefaultModuleFactoryResolver;
+import com.navercorp.pinpoint.profiler.context.module.ModuleFactory;
+import com.navercorp.pinpoint.profiler.context.module.ModuleFactoryResolver;
+import com.navercorp.pinpoint.profiler.context.provider.ShutdownHookRegisterProvider;
 import com.navercorp.pinpoint.profiler.logging.Slf4jLoggerBinder;
-
+import com.navercorp.pinpoint.profiler.util.SystemPropertyDumper;
 import com.navercorp.pinpoint.rpc.ClassPreLoader;
-
+import org.apache.log4j.xml.DOMConfigurator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
 
 /**
  * @author emeroad
@@ -44,7 +48,7 @@ import org.slf4j.LoggerFactory;
  */
 public class DefaultAgent implements Agent {
 
-    private final Logger logger = LoggerFactory.getLogger(this.getClass());
+    private final Logger logger;
 
     private final PLoggerBinder binder;
 
@@ -52,79 +56,54 @@ public class DefaultAgent implements Agent {
 
     private final ApplicationContext applicationContext;
 
-
     private final Object agentStatusLock = new Object();
     private volatile AgentStatus agentStatus;
 
-    private final InterceptorRegistryBinder interceptorRegistryBinder;
-    private final ServiceTypeRegistryService serviceTypeRegistryService;
-    
-
-    static {
-        // Preload classes related to pinpoint-rpc module.
-        ClassPreLoader.preload();
-    }
 
     public DefaultAgent(AgentOption agentOption) {
-        this(agentOption, createInterceptorRegistry(agentOption));
-    }
-
-    public static InterceptorRegistryBinder createInterceptorRegistry(AgentOption agentOption) {
-        final int interceptorSize = getInterceptorSize(agentOption);
-        return new DefaultInterceptorRegistryBinder(interceptorSize);
-    }
-
-    private static int getInterceptorSize(AgentOption agentOption) {
         if (agentOption == null) {
-            return DefaultInterceptorRegistryBinder.DEFAULT_MAX;
-        }
-        final ProfilerConfig profilerConfig = agentOption.getProfilerConfig();
-        return profilerConfig.getInterceptorRegistrySize();
-    }
-
-    public DefaultAgent(AgentOption agentOption, final InterceptorRegistryBinder interceptorRegistryBinder) {
-        if (agentOption == null) {
-            throw new NullPointerException("agentOption must not be null");
+            throw new NullPointerException("agentOption");
         }
         if (agentOption.getInstrumentation() == null) {
-            throw new NullPointerException("instrumentation must not be null");
+            throw new NullPointerException("instrumentation");
         }
         if (agentOption.getProfilerConfig() == null) {
-            throw new NullPointerException("profilerConfig must not be null");
-        }
-        if (agentOption.getServiceTypeRegistryService() == null) {
-            throw new NullPointerException("serviceTypeRegistryService must not be null");
+            throw new NullPointerException("profilerConfig");
         }
 
-        if (interceptorRegistryBinder == null) {
-            throw new NullPointerException("interceptorRegistryBinder must not be null");
-        }
+        initLogger(agentOption.getProfilerConfig());
+
+        logger = LoggerFactory.getLogger(this.getClass());
         logger.info("AgentOption:{}", agentOption);
 
         this.binder = new Slf4jLoggerBinder();
         bindPLoggerFactory(this.binder);
-
-        this.interceptorRegistryBinder = interceptorRegistryBinder;
-        interceptorRegistryBinder.bind();
-        this.serviceTypeRegistryService = agentOption.getServiceTypeRegistryService();
 
         dumpSystemProperties();
         dumpConfig(agentOption.getProfilerConfig());
 
         changeStatus(AgentStatus.INITIALIZING);
 
+        if (Boolean.valueOf(System.getProperty("pinpoint.profiler.ClassPreLoader", "false"))) {
+            // Preload classes related to pinpoint-rpc module.
+            ClassPreLoader.preload();
+        }
+        preloadOnStartup();
+
         this.profilerConfig = agentOption.getProfilerConfig();
 
-        this.applicationContext = newApplicationContext(agentOption, interceptorRegistryBinder);
+        this.applicationContext = newApplicationContext(agentOption);
 
-        
-        InterceptorInvokerHelper.setPropagateException(profilerConfig.isPropagateInterceptorException());
     }
 
-    protected ApplicationContext newApplicationContext(AgentOption agentOption, InterceptorRegistryBinder interceptorRegistryBinder) {
-        return new DefaultApplicationContext(agentOption, interceptorRegistryBinder);
-    }
+    protected ApplicationContext newApplicationContext(AgentOption agentOption) {
+        Assert.requireNonNull(agentOption, "agentOption");
+        ProfilerConfig profilerConfig = Assert.requireNonNull(agentOption.getProfilerConfig(), "profilerConfig");
 
+        ModuleFactoryResolver moduleFactoryResolver = new DefaultModuleFactoryResolver(profilerConfig.getInjectionModuleFactoryClazzName());
+        ModuleFactory moduleFactory = moduleFactoryResolver.resolve();
+        return new DefaultApplicationContext(agentOption, moduleFactory);
+    }
 
     protected ApplicationContext getApplicationContext() {
         return applicationContext;
@@ -158,11 +137,22 @@ public class DefaultAgent implements Agent {
         PLoggerFactory.initialize(binder);
     }
 
-
-    public ServiceTypeRegistryService getServiceTypeRegistryService() {
-        return serviceTypeRegistryService;
+    private void initLogger(ProfilerConfig config) {
+        final String location = config.readString(Profiles.LOG_CONFIG_LOCATION, null);
+        if (location == null) {
+            throw new IllegalStateException("$PINPOINT_DIR/profiles/${profile}/log4j.xml not found");
+        }
+        // log4j init
+        DOMConfigurator.configure(location);
     }
-    
+
+
+    private void preloadOnStartup() {
+        // Preload to fail fast on startup. This won't be necessary once JDK 6 support ends
+        // and reflective method handle is not needed.
+        SocketAddressUtils.getHostNameFirst(null);
+    }
+
     @Override
     public void start() {
         synchronized (agentStatusLock) {
@@ -175,15 +165,28 @@ public class DefaultAgent implements Agent {
         }
         logger.info("Starting {} Agent.", ProductInfo.NAME);
         this.applicationContext.start();
+    }
 
+    @Override
+    public void registerStopHandler() {
+        logger.info("registerStopHandler");
+        ShutdownHookRegisterProvider shutdownHookRegisterProvider = new ShutdownHookRegisterProvider(profilerConfig);
+        ShutdownHookRegister shutdownHookRegister = shutdownHookRegisterProvider.get();
+
+        PinpointThreadFactory pinpointThreadFactory = new PinpointThreadFactory("Pinpoint-shutdown-hook", false);
+        Thread shutdownThread = pinpointThreadFactory.newThread(new Runnable() {
+            @Override
+            public void run() {
+                logger.info("stop() started. threadName:" + Thread.currentThread().getName());
+                DefaultAgent.this.stop();
+            }
+        });
+
+        shutdownHookRegister.register(shutdownThread);
     }
 
     @Override
     public void stop() {
-        stop(false);
-    }
-
-    public void stop(boolean staticResourceCleanup) {
         synchronized (agentStatusLock) {
             if (this.agentStatus == AgentStatus.RUNNING) {
                 changeStatus(AgentStatus.STOPPED);
@@ -196,9 +199,8 @@ public class DefaultAgent implements Agent {
         this.applicationContext.close();
 
         // for testcase
-        if (staticResourceCleanup) {
+        if (profilerConfig.getStaticResourceCleanup()) {
             PLoggerFactory.unregister(this.binder);
-            this.interceptorRegistryBinder.unbind();
         }
     }
 

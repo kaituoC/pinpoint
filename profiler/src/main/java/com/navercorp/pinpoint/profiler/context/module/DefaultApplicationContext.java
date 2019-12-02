@@ -1,5 +1,5 @@
 /*
- * Copyright 2017 NAVER Corp.
+ * Copyright 2018 NAVER Corp.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -21,30 +21,35 @@ import com.google.inject.Injector;
 import com.google.inject.Key;
 import com.google.inject.Module;
 import com.google.inject.Stage;
+import com.google.inject.name.Names;
 import com.navercorp.pinpoint.bootstrap.AgentOption;
 import com.navercorp.pinpoint.bootstrap.config.ProfilerConfig;
 import com.navercorp.pinpoint.bootstrap.context.TraceContext;
 import com.navercorp.pinpoint.bootstrap.instrument.DynamicTransformTrigger;
-import com.navercorp.pinpoint.common.service.ServiceTypeRegistryService;
+import com.navercorp.pinpoint.bootstrap.module.ClassFileTransformModuleAdaptor;
+import com.navercorp.pinpoint.bootstrap.module.JavaModuleFactory;
 import com.navercorp.pinpoint.common.util.Assert;
+import com.navercorp.pinpoint.common.util.JvmUtils;
+import com.navercorp.pinpoint.common.util.JvmVersion;
 import com.navercorp.pinpoint.profiler.AgentInfoSender;
 import com.navercorp.pinpoint.profiler.AgentInformation;
-import com.navercorp.pinpoint.profiler.ClassFileTransformerDispatcher;
 import com.navercorp.pinpoint.profiler.context.ServerMetaDataRegistryService;
+import com.navercorp.pinpoint.profiler.context.javamodule.ClassFileTransformerModuleHandler;
+import com.navercorp.pinpoint.profiler.context.javamodule.JavaModuleFactoryFinder;
 import com.navercorp.pinpoint.profiler.instrument.ASMBytecodeDumpService;
 import com.navercorp.pinpoint.profiler.instrument.BytecodeDumpTransformer;
 import com.navercorp.pinpoint.profiler.instrument.InstrumentEngine;
+import com.navercorp.pinpoint.profiler.instrument.lambda.LambdaTransformBootloader;
 import com.navercorp.pinpoint.profiler.interceptor.registry.InterceptorRegistryBinder;
 import com.navercorp.pinpoint.profiler.monitor.AgentStatMonitor;
 import com.navercorp.pinpoint.profiler.monitor.DeadlockMonitor;
 import com.navercorp.pinpoint.profiler.sender.DataSender;
-import com.navercorp.pinpoint.profiler.sender.EnhancedDataSender;
-import com.navercorp.pinpoint.rpc.client.PinpointClientFactory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.lang.instrument.ClassFileTransformer;
 import java.lang.instrument.Instrumentation;
+import java.lang.reflect.Constructor;
 
 /**
  * @author Woonduk Kang(emeroad)
@@ -61,68 +66,58 @@ public class DefaultApplicationContext implements ApplicationContext {
 
     private final TraceContext traceContext;
 
-    private final PinpointClientFactory clientFactory;
-    private final EnhancedDataSender tcpDataSender;
-
-    private final PinpointClientFactory spanStatClientFactory;
-    private final DataSender spanDataSender;
-    private final DataSender statDataSender;
+    private final ModuleLifeCycle rpcModuleLifeCycle;
 
     private final AgentInformation agentInformation;
-    private final AgentOption agentOption;
     private final ServerMetaDataRegistryService serverMetaDataRegistryService;
 
-    private final ServiceTypeRegistryService serviceTypeRegistryService;
+    private final ClassFileTransformer classFileTransformer;
 
-    private final ClassFileTransformerDispatcher classFileDispatcher;
-
-    private final Instrumentation instrumentation;
     private final InstrumentEngine instrumentEngine;
     private final DynamicTransformTrigger dynamicTransformTrigger;
+    private final InterceptorRegistryBinder interceptorRegistryBinder;
 
     private final Injector injector;
 
-    public DefaultApplicationContext(AgentOption agentOption, final InterceptorRegistryBinder interceptorRegistryBinder) {
-        this(agentOption, interceptorRegistryBinder, new ApplicationContextModuleFactory());
-    }
+    public DefaultApplicationContext(AgentOption agentOption, ModuleFactory moduleFactory) {
+        Assert.requireNonNull(agentOption, "agentOption");
+        Assert.requireNonNull(moduleFactory, "moduleFactory");
+        Assert.requireNonNull(agentOption.getProfilerConfig(), "profilerConfig");
 
-    public DefaultApplicationContext(AgentOption agentOption, final InterceptorRegistryBinder interceptorRegistryBinder, ModuleFactory moduleFactory) {
-        this.agentOption = Assert.requireNonNull(agentOption, "agentOption must not be null");
-        this.profilerConfig = Assert.requireNonNull(agentOption.getProfilerConfig(), "profilerConfig must not be null");
-        Assert.requireNonNull(moduleFactory, "moduleFactory must not be null");
-
-        this.instrumentation = agentOption.getInstrumentation();
-        this.serviceTypeRegistryService = agentOption.getServiceTypeRegistryService();
-
+        final Instrumentation instrumentation = agentOption.getInstrumentation();
         if (logger.isInfoEnabled()) {
             logger.info("DefaultAgent classLoader:{}", this.getClass().getClassLoader());
         }
 
-        final Module applicationContextModule = moduleFactory.newModule(agentOption, interceptorRegistryBinder);
+        final Module applicationContextModule = moduleFactory.newModule(agentOption);
         this.injector = Guice.createInjector(Stage.PRODUCTION, applicationContextModule);
+
+        this.profilerConfig = injector.getInstance(ProfilerConfig.class);
+        this.interceptorRegistryBinder = injector.getInstance(InterceptorRegistryBinder.class);
 
         this.instrumentEngine = injector.getInstance(InstrumentEngine.class);
 
-        this.classFileDispatcher = injector.getInstance(ClassFileTransformerDispatcher.class);
+        this.classFileTransformer = injector.getInstance(ClassFileTransformer.class);
         this.dynamicTransformTrigger = injector.getInstance(DynamicTransformTrigger.class);
-//        ClassFileTransformer classFileTransformer = injector.getInstance(ClassFileTransformer.class);
-        ClassFileTransformer classFileTransformer = wrap(classFileDispatcher);
-        instrumentation.addTransformer(classFileTransformer, true);
 
-        this.spanStatClientFactory = injector.getInstance(Key.get(PinpointClientFactory.class, SpanStatClientFactory.class));
-        logger.info("spanStatClientFactory:{}", spanStatClientFactory);
+        ClassFileTransformer classFileTransformer = wrap(this.classFileTransformer);
+        final JvmVersion version = JvmUtils.getVersion();
+        if (version.onOrAfter(JvmVersion.JAVA_9)) {
+            final JavaModuleFactory javaModuleFactory = JavaModuleFactoryFinder.lookup(instrumentation);
+            ClassFileTransformModuleAdaptor classFileTransformModuleAdaptor = new ClassFileTransformerModuleHandler(instrumentation, classFileTransformer, javaModuleFactory);
+            classFileTransformer = wrapJava9ClassFileTransformer(classFileTransformModuleAdaptor);
 
-        this.spanDataSender = newUdpSpanDataSender();
-        logger.info("spanDataSender:{}", spanDataSender);
+            lambdaFactorySetup(instrumentation, classFileTransformModuleAdaptor, javaModuleFactory);
 
-        this.statDataSender = newUdpStatDataSender();
-        logger.info("statDataSender:{}", statDataSender);
+            instrumentation.addTransformer(classFileTransformer, true);
+        } else {
+            instrumentation.addTransformer(classFileTransformer, true);
+        }
 
-        this.clientFactory = injector.getInstance(Key.get(PinpointClientFactory.class, DefaultClientFactory.class));
-        logger.info("clientFactory:{}", clientFactory);
 
-        this.tcpDataSender = injector.getInstance(EnhancedDataSender.class);
-        logger.info("tcpDataSender:{}", tcpDataSender);
+        this.rpcModuleLifeCycle = injector.getInstance(Key.get(ModuleLifeCycle.class, Names.named("RPC-MODULE")));
+        logger.info("rpcModuleLifeCycle:{}", rpcModuleLifeCycle);
+        this.rpcModuleLifeCycle.start();
 
         this.traceContext = injector.getInstance(TraceContext.class);
 
@@ -135,30 +130,44 @@ public class DefaultApplicationContext implements ApplicationContext {
         this.agentStatMonitor = injector.getInstance(AgentStatMonitor.class);
     }
 
-    public ClassFileTransformer wrap(ClassFileTransformerDispatcher classFileTransformerDispatcher) {
+    private void lambdaFactorySetup(Instrumentation instrumentation, ClassFileTransformModuleAdaptor classFileTransformer, JavaModuleFactory javaModuleFactory) {
+        final JvmVersion version = JvmUtils.getVersion();
+//      TODO version.onOrAfter(JvmVersion.JAVA_8)
+        if (version.onOrAfter(JvmVersion.JAVA_9)) {
+            LambdaTransformBootloader lambdaTransformBootloader = new LambdaTransformBootloader();
+            lambdaTransformBootloader.transformLambdaFactory(instrumentation, classFileTransformer, javaModuleFactory);
+        }
+    }
+
+    private ClassFileTransformer wrapJava9ClassFileTransformer(ClassFileTransformModuleAdaptor classFileTransformer) {
+        logger.info("initialize Java9ClassFileTransformer");
+        String moduleWrap = "com.navercorp.pinpoint.bootstrap.java9.module.ClassFileTransformerModuleWrap";
+        try {
+            Class<ClassFileTransformer> cftClass = (Class<ClassFileTransformer>) forName(moduleWrap, Object.class.getClassLoader());
+            Constructor<ClassFileTransformer> constructor = cftClass.getDeclaredConstructor(ClassFileTransformModuleAdaptor.class);
+            return constructor.newInstance(classFileTransformer);
+        } catch (Exception e) {
+            throw new IllegalStateException(moduleWrap + " load fail Caused by:" + e.getMessage(), e);
+        }
+    }
+
+    private Class<?> forName(String className, ClassLoader classLoader) {
+        try {
+            return Class.forName(className, false, classLoader);
+        } catch (ClassNotFoundException e) {
+            throw new IllegalStateException(className + " not found");
+        }
+    }
+
+    private ClassFileTransformer wrap(ClassFileTransformer classFileTransformer) {
         final boolean enableBytecodeDump = profilerConfig.readBoolean(ASMBytecodeDumpService.ENABLE_BYTECODE_DUMP, ASMBytecodeDumpService.ENABLE_BYTECODE_DUMP_DEFAULT_VALUE);
         if (enableBytecodeDump) {
             logger.info("wrapBytecodeDumpTransformer");
-            return BytecodeDumpTransformer.wrap(classFileTransformerDispatcher, profilerConfig);
+            return BytecodeDumpTransformer.wrap(classFileTransformer, profilerConfig);
         }
-        return classFileTransformerDispatcher;
+        return classFileTransformer;
     }
 
-    protected Module newApplicationContextModule(AgentOption agentOption, InterceptorRegistryBinder interceptorRegistryBinder) {
-        return new ApplicationContextModule(agentOption, interceptorRegistryBinder);
-    }
-
-    private DataSender newUdpStatDataSender() {
-        Key<DataSender> statDataSenderKey = Key.get(DataSender.class, StatDataSender.class);
-        return injector.getInstance(statDataSenderKey);
-    }
-
-    private DataSender newUdpSpanDataSender() {
-        Key<DataSender> spanDataSenderKey = Key.get(DataSender.class, SpanDataSender.class);
-        return injector.getInstance(spanDataSenderKey);
-    }
-
-    @Override
     public ProfilerConfig getProfilerConfig() {
         return profilerConfig;
     }
@@ -167,13 +176,13 @@ public class DefaultApplicationContext implements ApplicationContext {
         return injector;
     }
 
-    @Override
     public TraceContext getTraceContext() {
         return traceContext;
     }
 
     public DataSender getSpanDataSender() {
-        return spanDataSender;
+        Key<DataSender> spanDataSenderKey = Key.get(DataSender.class, SpanDataSender.class);
+        return injector.getInstance(spanDataSenderKey);
     }
 
     public InstrumentEngine getInstrumentEngine() {
@@ -181,18 +190,15 @@ public class DefaultApplicationContext implements ApplicationContext {
     }
 
 
-    @Override
     public DynamicTransformTrigger getDynamicTransformTrigger() {
         return dynamicTransformTrigger;
     }
 
 
-    @Override
-    public ClassFileTransformerDispatcher getClassFileTransformerDispatcher() {
-        return classFileDispatcher;
+    public ClassFileTransformer getClassFileTransformer() {
+        return classFileTransformer;
     }
 
-    @Override
     public AgentInformation getAgentInformation() {
         return this.agentInformation;
     }
@@ -201,8 +207,11 @@ public class DefaultApplicationContext implements ApplicationContext {
         return this.serverMetaDataRegistryService;
     }
 
+
     @Override
     public void start() {
+        this.interceptorRegistryBinder.bind();
+
         this.deadlockMonitor.start();
         this.agentInfoSender.start();
         this.agentStatMonitor.start();
@@ -215,23 +224,12 @@ public class DefaultApplicationContext implements ApplicationContext {
         this.deadlockMonitor.stop();
 
         // Need to process stop
-        this.spanDataSender.stop();
-        this.statDataSender.stop();
-        if (spanStatClientFactory != null) {
-            spanStatClientFactory.release();
+        if (rpcModuleLifeCycle != null) {
+            this.rpcModuleLifeCycle.shutdown();
         }
 
-        closeTcpDataSender();
-    }
-
-    private void closeTcpDataSender() {
-        final EnhancedDataSender tcpDataSender = this.tcpDataSender;
-        if (tcpDataSender != null) {
-            tcpDataSender.stop();
-        }
-        final PinpointClientFactory clientFactory = this.clientFactory;
-        if (clientFactory != null) {
-            clientFactory.release();
+        if (profilerConfig.getStaticResourceCleanup()) {
+            this.interceptorRegistryBinder.unbind();
         }
     }
 

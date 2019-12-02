@@ -1,11 +1,11 @@
 /*
- * Copyright 2016 NAVER Corp.
+ * Copyright 2018 NAVER Corp.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ * http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -19,12 +19,14 @@ package com.navercorp.pinpoint.profiler.receiver.service;
 import com.navercorp.pinpoint.common.util.Assert;
 import com.navercorp.pinpoint.common.util.JvmUtils;
 import com.navercorp.pinpoint.profiler.context.active.ActiveTraceSnapshot;
+import com.navercorp.pinpoint.profiler.context.thrift.ThreadStateThriftMessageConverter;
 import com.navercorp.pinpoint.profiler.receiver.ProfilerRequestCommandService;
-import com.navercorp.pinpoint.profiler.util.ThreadDumpUtils;
 import com.navercorp.pinpoint.thrift.dto.command.TActiveThreadLightDump;
 import com.navercorp.pinpoint.thrift.dto.command.TCmdActiveThreadLightDump;
 import com.navercorp.pinpoint.thrift.dto.command.TCmdActiveThreadLightDumpRes;
 import com.navercorp.pinpoint.thrift.dto.command.TThreadLightDump;
+import com.navercorp.pinpoint.thrift.dto.command.TThreadState;
+import com.navercorp.pinpoint.thrift.io.TCommandType;
 import org.apache.thrift.TBase;
 
 import java.lang.management.ThreadInfo;
@@ -35,13 +37,13 @@ import java.util.List;
 /**
  * @author Taejin Koo
  */
-public class ActiveThreadLightDumpService implements ProfilerRequestCommandService {
-
+public class ActiveThreadLightDumpService implements ProfilerRequestCommandService<TBase<?, ?>, TBase<?, ?>> {
 
     private final ActiveThreadDumpCoreService activeThreadDump;
+    private final ThreadStateThriftMessageConverter threadStateThriftMessageConverter = new ThreadStateThriftMessageConverter();
 
     public ActiveThreadLightDumpService(ActiveThreadDumpCoreService activeThreadDump) {
-        this.activeThreadDump = Assert.requireNonNull(activeThreadDump, "activeThreadDump must not be null");
+        this.activeThreadDump = Assert.requireNonNull(activeThreadDump, "activeThreadDump");
     }
 
     @Override
@@ -86,7 +88,8 @@ public class ActiveThreadLightDumpService implements ProfilerRequestCommandServi
         threadDump.setThreadName(threadInfo.getThreadName());
         threadDump.setThreadId(threadInfo.getThreadId());
 
-        threadDump.setThreadState(ThreadDumpUtils.toTThreadState(threadInfo.getThreadState()));
+        final TThreadState threadState = this.threadStateThriftMessageConverter.toMessage(threadInfo.getThreadState());
+        threadDump.setThreadState(threadState);
         return threadDump;
     }
 
@@ -111,8 +114,8 @@ public class ActiveThreadLightDumpService implements ProfilerRequestCommandServi
     }
 
     @Override
-    public Class<? extends TBase> getCommandClazz() {
-        return TCmdActiveThreadLightDump.class;
+    public short getCommandServiceCode() {
+        return TCommandType.ACTIVE_THREAD_LIGHT_DUMP.getCode();
     }
 
 }

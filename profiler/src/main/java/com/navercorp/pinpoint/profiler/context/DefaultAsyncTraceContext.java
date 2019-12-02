@@ -1,5 +1,5 @@
 /*
- * Copyright 2017 NAVER Corp.
+ * Copyright 2018 NAVER Corp.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,13 +17,10 @@
 package com.navercorp.pinpoint.profiler.context;
 
 import com.google.inject.Provider;
-import com.navercorp.pinpoint.bootstrap.context.AsyncTraceId;
 import com.navercorp.pinpoint.bootstrap.context.Trace;
 import com.navercorp.pinpoint.common.util.Assert;
 import com.navercorp.pinpoint.exception.PinpointException;
-import com.navercorp.pinpoint.profiler.context.id.AsyncIdGenerator;
 import com.navercorp.pinpoint.profiler.context.id.TraceRoot;
-import com.navercorp.pinpoint.profiler.context.id.TraceRootSupport;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -37,43 +34,31 @@ public class DefaultAsyncTraceContext implements AsyncTraceContext {
 
     private static final Reference<Trace> EMPTY = DefaultReference.emptyReference();
 
-    private final AsyncIdGenerator asyncIdGenerator;
     private Provider<BaseTraceFactory> baseTraceFactoryProvider;
     private final Binder<Trace> binder;
 
-    public DefaultAsyncTraceContext(Provider<BaseTraceFactory> baseTraceFactoryProvider, final AsyncIdGenerator asyncIdGenerator, Binder<Trace> binder) {
-        this.baseTraceFactoryProvider = Assert.requireNonNull(baseTraceFactoryProvider, "baseTraceFactoryProvider must not be null");
-        this.asyncIdGenerator = Assert.requireNonNull(asyncIdGenerator, "asyncIdGenerator must not be null");
-        this.binder = Assert.requireNonNull(binder, "binder must not be null");
+    public DefaultAsyncTraceContext(Provider<BaseTraceFactory> baseTraceFactoryProvider, Binder<Trace> binder) {
+        this.baseTraceFactoryProvider = Assert.requireNonNull(baseTraceFactoryProvider, "baseTraceFactoryProvider");
+        this.binder = Assert.requireNonNull(binder, "binder");
     }
 
     @Override
-    public Reference<Trace> continueAsyncTraceObject(TraceRoot traceRoot, int asyncId, short asyncSequence) {
+    public Reference<Trace> continueAsyncTraceObject(TraceRoot traceRoot, LocalAsyncId localAsyncId) {
         final Reference<Trace> reference = checkAndGet();
 
         final BaseTraceFactory baseTraceFactory = baseTraceFactoryProvider.get();
-        final Trace trace = baseTraceFactory.continueAsyncTraceObject(traceRoot, asyncId, asyncSequence);
+        final Trace trace = baseTraceFactory.continueAsyncTraceObject(traceRoot, localAsyncId);
 
         bind(reference, trace);
         return reference;
     }
 
     @Override
-    public Trace newAsyncTraceObject(TraceRoot traceRoot, int asyncId, short asyncSequence) {
+    public Trace newAsyncTraceObject(TraceRoot traceRoot, LocalAsyncId localAsyncId) {
         final BaseTraceFactory baseTraceFactory = baseTraceFactoryProvider.get();
-        return baseTraceFactory.continueAsyncTraceObject(traceRoot, asyncId, asyncSequence);
+        return baseTraceFactory.continueAsyncTraceObject(traceRoot, localAsyncId);
     }
 
-
-    @Override
-    public Reference<Trace> continueAsyncTraceObject(AsyncTraceId asyncTraceId, int asyncId, long startTime) {
-        Assert.requireNonNull(asyncTraceId, "asyncTraceId must not be null");
-
-        final TraceRoot traceRoot = getTraceRoot(asyncTraceId, startTime);
-        final short asyncSequence = asyncTraceId.nextAsyncSequence();
-
-        return this.continueAsyncTraceObject(traceRoot, asyncId, asyncSequence);
-    }
 
     @Override
     public Reference<Trace> currentRawTraceObject() {
@@ -100,22 +85,6 @@ public class DefaultAsyncTraceContext implements AsyncTraceContext {
         binder.remove();
     }
 
-    private TraceRoot getTraceRoot(AsyncTraceId asyncTraceId, long startTime) {
-        if (asyncTraceId instanceof TraceRootSupport) {
-            final TraceRoot traceRoot = ((TraceRootSupport) asyncTraceId).getTraceRoot();
-            assertTraceStartTime(traceRoot, startTime);
-            return traceRoot ;
-        }
-
-        throw new UnsupportedOperationException("unsupported TraceRootSupport:" + asyncTraceId);
-    }
-
-    private void assertTraceStartTime(TraceRoot traceRoot, long startTime) {
-        if (traceRoot.getTraceStartTime() != startTime) {
-            throw new IllegalStateException("traceStartTime not equals traceRoot:" + traceRoot.getTraceStartTime()
-                    + " startTime:" + startTime);
-        }
-    }
 
     private Reference<Trace> checkAndGet() {
         final Reference<Trace> reference = this.binder.get();
@@ -134,8 +103,4 @@ public class DefaultAsyncTraceContext implements AsyncTraceContext {
         reference.set(trace);
     }
 
-    @Override
-    public int nextAsyncId() {
-        return this.asyncIdGenerator.nextAsyncId();
-    }
 }

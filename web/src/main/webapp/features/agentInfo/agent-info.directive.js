@@ -3,8 +3,8 @@
 		ID: "AGENT_INFO_DRTV_"
 	});
 
-	pinpointApp.directive( "agentInfoDirective", [ "agentInfoDirectiveConfig", "$sce", "$timeout", "SystemConfigurationService", "CommonUtilService", "UrlVoService", "AlertsService", "ProgressBarService", "AgentDaoService", "ResponseTimeChartDaoService", "ActiveThreadChartDaoService", "TPSChartDaoService", "CPULoadChartDaoService", "MemoryChartDaoService", "AgentAjaxService", "TooltipService", "AnalyticsService", "helpContentService",
-		function ( cfg, $sce, $timeout, SystemConfigService, CommonUtilService, UrlVoService, AlertsService, ProgressBarService, AgentDaoService, ResponseTimeChartDaoService, ActiveThreadChartDaoService, TPSChartDaoService, CPULoadChartDaoService, MemoryChartDaoService, AgentAjaxService, TooltipService, AnalyticsService, helpContentService ) {
+	pinpointApp.directive( "agentInfoDirective", [ "agentInfoDirectiveConfig", "$sce", "$timeout", "CommonUtilService", "UrlVoService", "AlertsService", "ProgressBarService", "AgentDaoService", "ResponseTimeChartDaoService", "ActiveThreadChartDaoService", "TPSChartDaoService", "CPULoadChartDaoService", "MemoryChartDaoService", "OpenFileDescriptorDaoService", "DirectBufferDaoService","AgentAjaxService", "TooltipService", "AnalyticsService", "helpContentService",
+		function ( cfg, $sce, $timeout, CommonUtilService, UrlVoService, AlertsService, ProgressBarService, AgentDaoService, ResponseTimeChartDaoService, ActiveThreadChartDaoService, TPSChartDaoService, CPULoadChartDaoService, MemoryChartDaoService, OpenFileDescriptorDaoService, DirectBufferDaoService, AgentAjaxService, TooltipService, AnalyticsService, helpContentService ) {
 			return {
 				restrict: 'EA',
 				replace: true,
@@ -33,7 +33,7 @@
 								"handleSrc": "images/handle.png",
 								"timeSeries": aFromTo ? aFromTo : calcuSliderTimeSeries(aSelectionFromTo),
 								"handleTimeSeries": aSelectionFromTo,
-								"selectTime": aSelectionFromTo[1],
+								"selectTime": selectedTime || aSelectionFromTo[1],
 								"timelineData": {}
 							}).addEvent("clickEvent", function (aEvent) {// [x, y, obj]
 								loadEventInfo(aEvent[2]);
@@ -88,12 +88,46 @@
 							dataSourceChartData = result;
 							showDataSourceChart();
 						});
+						AgentAjaxService.getOpenFileDescriptorChartData( oParam, function (result) {
+							showOpenFileDescriptorChart(result);
+						});
+						AgentAjaxService.getDirectBufferChartData( oParam, function (result) {
+							var refinedChartData = DirectBufferDaoService.parseData( result );
+							showDirectBufferCountChart(refinedChartData);
+							showDirectBufferMemoryChart(refinedChartData);
+							showMappedBufferCountChart(refinedChartData);
+							showMappedBufferMemoryChart(refinedChartData);
+						});
 					}
 					function loadAgentInfo( time ) {
 						AgentAjaxService.getAgentInfo({
 							"agentId": scope.agent.agentId,
 							"timestamp": time
 						}, function( result ) {
+							if ( result === '' ) {
+								result = {
+									"agentId": scope.agent.agentId,
+									"agentVersion": "",
+									"applicationName": "",
+									"hostName": "",
+									"initialStartTimestamp": 0,
+									"ip": "",
+									"jvmInfo": {
+										"gcTypeName": "",
+										"jvmVersion": ""
+									},
+									"pid": "",
+									"ports": "",
+									"status": {
+										"agentId": "",
+										"state": {
+											"desc": ""
+										}
+									},
+									"jvmGcType": "",
+									"vmVersion": ""
+								};
+							}
 							var jvmGcType = scope.agent.jvmGcType;
 							scope.agent = result;
 							scope.agent.jvmGcType = jvmGcType;
@@ -131,7 +165,7 @@
 					}
 					function initTooltip() {
 						if ( bInitTooltip === false ) {
-							["heap", "permGen", "cpuUsage", "tps", "activeThread", "responseTime", "dataSource"].forEach(function(value) {
+							["heap", "permGen", "cpuUsage", "tps", "activeThread", "responseTime", "dataSource", "openFileDescriptor", "directBufferCount", "directBufferMemory", "mappedBufferCount", "mappedBufferMemory"].forEach(function(value) {
 								TooltipService.init( value );
 							});
 							bInitTooltip = true;
@@ -216,6 +250,52 @@
 							"270px"
 						);
 					}
+					function showOpenFileDescriptorChart( chartData ) {
+						var refinedChartData = OpenFileDescriptorDaoService.parseData( chartData );
+						scope.$broadcast(
+							"agentInspectorChartDirective.initAndRenderWithData.agent-open-file-descriptor",
+							refinedChartData,
+							OpenFileDescriptorDaoService.getChartOptions( refinedChartData ),
+							"100%",
+							"270px"
+						);
+					}
+					function showDirectBufferCountChart( refinedChartData ) {
+						scope.$broadcast(
+							"agentInspectorChartDirective.initAndRenderWithData.agent-direct-buffer-count",
+							refinedChartData,
+							DirectBufferDaoService.getDirectBufferCountChartOptions( refinedChartData ),
+							"100%",
+							"270px"
+						);
+					}
+					function showDirectBufferMemoryChart( refinedChartData ) {
+						scope.$broadcast(
+							"agentInspectorChartDirective.initAndRenderWithData.agent-direct-buffer-memory",
+							refinedChartData,
+							DirectBufferDaoService.getDirectBufferMemoryChartOptions( refinedChartData ),
+							"100%",
+							"270px"
+						);
+					}
+					function showMappedBufferCountChart( refinedChartData ) {
+						scope.$broadcast(
+							"agentInspectorChartDirective.initAndRenderWithData.agent-mapped-buffer-count",
+							refinedChartData,
+							DirectBufferDaoService.getMappedBufferCountChartOptions( refinedChartData ),
+							"100%",
+							"270px"
+						);
+					}
+					function showMappedBufferMemoryChart( refinedChartData ) {
+						scope.$broadcast(
+							"agentInspectorChartDirective.initAndRenderWithData.agent-mapped-buffer-memory",
+							refinedChartData,
+							DirectBufferDaoService.getMappedBufferMemoryChartOptions( refinedChartData ),
+							"100%",
+							"270px"
+						);
+					}
 					var dataSourceChartData = [];
 					var dataSourceIdPrefix = "source_";
 					scope.dataSourceChartKeys = [];
@@ -293,8 +373,12 @@
 								oAlertService.showError('There is some error.');
 							} else {
 								timeSlider.addData(result);
+								sendUpTimeSliderTimeInfo(timeSlider.getSliderTimeSeries(), timeSlider.getSelectionTimeSeries(), scope.selectTime);
 							}
 						});
+					}
+					function removePopover() {
+						$("._wrongApp").popover("destroy");
 					}
 					scope.toggleSourceSelectLayer = function() {
 						element.find("#data-source-chart .type-select-layer").toggle();
@@ -378,6 +462,7 @@
 						}
 					};
 					scope.$on( "down.changed.agent", function ( event, invokerId, agent, bInvokedByTop, sliderTimeSeriesOption ) {
+						removePopover();
 						if( cfg.ID === invokerId ) return;
 						if ( CommonUtilService.isEmpty( agent.agentId ) ) {
 							return;
@@ -395,19 +480,25 @@
 						scope.currentServiceInfo = initServiceInfo(agent);
 
 						var aFromTo, period, aSelectionFromTo = [], selectedTime;
-						if ( timeSlider === null || bInvokedByTop ) {
+						if ( bInvokedByTop ) {
 							aSelectionFromTo[0] = UrlVoService.getQueryStartTime();
 							aSelectionFromTo[1] = UrlVoService.getQueryEndTime();
 							period = UrlVoService.getPeriod();
 						} else {
 							if ( sliderTimeSeriesOption === undefined || sliderTimeSeriesOption === null ) {
-								aSelectionFromTo = timeSlider.getSelectionTimeSeries();
-								aFromTo = timeSlider.getSliderTimeSeries();
+								if ( timeSlider === null ) {
+									aSelectionFromTo[0] = UrlVoService.getQueryStartTime();
+									aSelectionFromTo[1] = UrlVoService.getQueryEndTime();
+								} else {
+									aSelectionFromTo = timeSlider.getSelectionTimeSeries();
+									aFromTo = timeSlider.getSliderTimeSeries();
+								}
 								period = UrlVoService.getPeriod();
 							} else {
 								aSelectionFromTo = sliderTimeSeriesOption["selectionTimeSeries"];
 								aFromTo = sliderTimeSeriesOption["timeSeries"];
 								selectedTime = sliderTimeSeriesOption["selectedTime"];
+								scope.selectTime = selectedTime;
 							}
 						}
 						if ( scope.selectTime === -1 || bInvokedByTop ) {
@@ -427,6 +518,11 @@
 						// getTimelineList( scope.agent.agentId, aFromTo || calcuSliderTimeSeries( aSelectionFromTo ) );
 					}
 					scope.$on("agentInspectorChartDirective.cursorChanged", function (e, sourceTarget, event) {
+						if ( typeof event.index === "undefined" ) {
+							timeSlider.hideFocus();
+						} else {
+							timeSlider.showFocus( moment(event.target.chart.dataProvider[event.index].time).valueOf() );
+						}
 						scope.$broadcast( "agentInspectorChartDirective.showCursorAt", sourceTarget, event.index );
 						scope.$broadcast( "dsChartDirective.showCursorAt.agent-data-source", event.index);
 					});

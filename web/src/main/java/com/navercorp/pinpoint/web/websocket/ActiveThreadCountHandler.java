@@ -1,11 +1,11 @@
 /*
- * Copyright 2015 NAVER Corp.
+ * Copyright 2019 NAVER Corp.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ * http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -17,11 +17,13 @@
 package com.navercorp.pinpoint.web.websocket;
 
 import com.navercorp.pinpoint.common.util.CpuUtils;
-import com.navercorp.pinpoint.common.util.PinpointThreadFactory;
+import com.navercorp.pinpoint.common.profiler.concurrent.PinpointThreadFactory;
 import com.navercorp.pinpoint.rpc.util.ClassUtils;
 import com.navercorp.pinpoint.rpc.util.MapUtils;
 import com.navercorp.pinpoint.web.security.ServerMapDataFilter;
 import com.navercorp.pinpoint.web.service.AgentService;
+import com.navercorp.pinpoint.web.task.TimerTaskDecorator;
+import com.navercorp.pinpoint.web.task.TimerTaskDecoratorFactory;
 import com.navercorp.pinpoint.web.util.SimpleOrderedThreadPool;
 import com.navercorp.pinpoint.web.websocket.message.PinpointWebSocketMessage;
 import com.navercorp.pinpoint.web.websocket.message.PinpointWebSocketMessageConverter;
@@ -68,20 +70,24 @@ public class ActiveThreadCountHandler extends TextWebSocketHandler implements Pi
 
     private final AtomicBoolean onTimerTask = new AtomicBoolean(false);
 
+
     private SimpleOrderedThreadPool webSocketFlushExecutor;
 
-    private java.util.Timer flushTimer;
+    private Timer flushTimer;
     private static final long DEFAULT_FLUSH_DELAY = 1000;
     private final long flushDelay;
 
-    private java.util.Timer healthCheckTimer;
+    private Timer healthCheckTimer;
     private static final long DEFAULT_HEALTH_CHECk_DELAY = 60 * 1000;
     private final long healthCheckDelay;
 
-    private java.util.Timer reactiveTimer;
-    
+    private Timer reactiveTimer;
+
     @Autowired(required=false)
     ServerMapDataFilter serverMapDataFilter;
+
+    @Autowired(required = false)
+    private TimerTaskDecoratorFactory timerTaskDecoratorFactory = new PinpointWebSocketTimerTaskDecoratorFactory();
 
     public ActiveThreadCountHandler(AgentService agentService) {
         this(DEFAULT_REQUEST_MAPPING, agentService);
@@ -113,7 +119,7 @@ public class ActiveThreadCountHandler extends TextWebSocketHandler implements Pi
     }
 
     private Timer newJavaTimer(String timerName) {
-        return new java.util.Timer(timerName, true);
+        return new Timer(timerName, true);
     }
 
     @Override
@@ -272,7 +278,8 @@ public class ActiveThreadCountHandler extends TextWebSocketHandler implements Pi
 
         PinpointWebSocketResponseAggregator responseAggregator = aggregatorRepository.get(applicationName);
         if (responseAggregator == null) {
-            responseAggregator = new ActiveThreadCountResponseAggregator(applicationName, agentService, reactiveTimer);
+            TimerTaskDecorator timerTaskDecorator = timerTaskDecoratorFactory.createTimerTaskDecorator();
+            responseAggregator = new ActiveThreadCountResponseAggregator(applicationName, agentService, reactiveTimer, timerTaskDecorator);
             responseAggregator.start();
             aggregatorRepository.put(applicationName, responseAggregator);
         }
@@ -305,7 +312,7 @@ public class ActiveThreadCountHandler extends TextWebSocketHandler implements Pi
         private final long startTimeMillis;
         private final long delay;
 
-        private int times = 0;
+        private int times;
 
         public ActiveThreadTimerTask(long delay) {
             this(System.currentTimeMillis(), delay, 0);
@@ -320,7 +327,9 @@ public class ActiveThreadCountHandler extends TextWebSocketHandler implements Pi
         @Override
         public void run() {
             try {
-                logger.info("ActiveThreadTimerTask started.");
+                if (logger.isDebugEnabled()) {
+                    logger.debug("ActiveThreadTimerTask started.");
+                }
 
                 Collection<PinpointWebSocketResponseAggregator> values = aggregatorRepository.values();
                 for (final PinpointWebSocketResponseAggregator aggregator : values) {
@@ -357,7 +366,9 @@ public class ActiveThreadCountHandler extends TextWebSocketHandler implements Pi
         @Override
         public void run() {
             try {
-                logger.info("HealthCheckTimerTask started.");
+                if (logger.isDebugEnabled()) {
+                    logger.debug("HealthCheckTimerTask started.");
+                }
 
                 // check session state.
                 List<WebSocketSession> snapshot = filterHealthCheckSuccess(sessionRepository);

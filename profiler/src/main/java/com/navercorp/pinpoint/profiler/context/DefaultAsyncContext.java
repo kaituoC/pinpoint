@@ -1,5 +1,5 @@
 /*
- * Copyright 2017 NAVER Corp.
+ * Copyright 2018 NAVER Corp.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -43,9 +43,9 @@ public class DefaultAsyncContext implements AsyncContext {
 
 
     public DefaultAsyncContext(AsyncTraceContext asyncTraceContext, TraceRoot traceRoot, AsyncId asyncId, int asyncMethodApiId) {
-        this.asyncTraceContext = Assert.requireNonNull(asyncTraceContext, "asyncTraceContext must not be null");
-        this.traceRoot = Assert.requireNonNull(traceRoot, "traceRoot must not be null");
-        this.asyncId = Assert.requireNonNull(asyncId, "asyncId must not be null");
+        this.asyncTraceContext = Assert.requireNonNull(asyncTraceContext, "asyncTraceContext");
+        this.traceRoot = Assert.requireNonNull(traceRoot, "traceRoot");
+        this.asyncId = Assert.requireNonNull(asyncId, "asyncId");
 
 
         this.asyncMethodApiId = asyncMethodApiId;
@@ -73,9 +73,10 @@ public class DefaultAsyncContext implements AsyncContext {
     }
 
     private Trace newAsyncTrace(Reference<Trace> reference) {
-        final int asyncId = this.asyncId.getAsyncId();
-        final short asyncSequence = this.asyncId.nextAsyncSequence();
-        final Trace asyncTrace = asyncTraceContext.newAsyncTraceObject(traceRoot, asyncId, asyncSequence);
+//        final int asyncId = this.asyncId.getAsyncId();
+//        final short asyncSequence = this.asyncId.nextAsyncSequence();
+        final LocalAsyncId localAsyncId = this.asyncId.nextLocalAsyncId();
+        final Trace asyncTrace = asyncTraceContext.newAsyncTraceObject(traceRoot, localAsyncId);
 
 
         bind(reference, asyncTrace);

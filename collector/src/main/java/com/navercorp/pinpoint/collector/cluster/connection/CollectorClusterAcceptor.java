@@ -17,26 +17,24 @@
 
 package com.navercorp.pinpoint.collector.cluster.connection;
 
-import com.navercorp.pinpoint.rpc.MessageListener;
-import com.navercorp.pinpoint.rpc.PinpointSocket;
+import com.navercorp.pinpoint.collector.util.Address;
+import com.navercorp.pinpoint.collector.util.DefaultAddress;
 import com.navercorp.pinpoint.rpc.cluster.ClusterOption;
 import com.navercorp.pinpoint.rpc.cluster.Role;
 import com.navercorp.pinpoint.rpc.common.SocketStateCode;
-import com.navercorp.pinpoint.rpc.packet.HandshakeResponseCode;
-import com.navercorp.pinpoint.rpc.packet.PingPayloadPacket;
-import com.navercorp.pinpoint.rpc.packet.RequestPacket;
-import com.navercorp.pinpoint.rpc.packet.SendPacket;
+import com.navercorp.pinpoint.rpc.server.ChannelFilter;
 import com.navercorp.pinpoint.rpc.server.PinpointServer;
 import com.navercorp.pinpoint.rpc.server.PinpointServerAcceptor;
-import com.navercorp.pinpoint.rpc.server.ServerMessageListener;
+import com.navercorp.pinpoint.rpc.server.ServerOption;
 import com.navercorp.pinpoint.rpc.server.handler.ServerStateChangeEventHandler;
 import com.navercorp.pinpoint.rpc.util.ClassUtils;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.net.InetSocketAddress;
 import java.net.SocketAddress;
-import java.util.Map;
+import java.util.Objects;
 
 /**
  * @author Taejin Koo
@@ -45,6 +43,7 @@ public class CollectorClusterAcceptor implements CollectorClusterConnectionProvi
 
     private final Logger logger = LoggerFactory.getLogger(this.getClass());
 
+    private final String name;
     private final InetSocketAddress bindAddress;
     private final CollectorClusterConnectionRepository clusterSocketRepository;
 
@@ -53,92 +52,63 @@ public class CollectorClusterAcceptor implements CollectorClusterConnectionProvi
     private final CollectorClusterConnectionOption option;
 
     public CollectorClusterAcceptor(CollectorClusterConnectionOption option, InetSocketAddress bindAddress, CollectorClusterConnectionRepository clusterSocketRepository) {
-        this.option = option;
-        this.bindAddress = bindAddress;
-        this.clusterSocketRepository = clusterSocketRepository;
+        this.name = ClassUtils.simpleClassName(this);
+        this.option = Objects.requireNonNull(option, "option");
+        this.bindAddress = Objects.requireNonNull(bindAddress, "bindAddress");
+        this.clusterSocketRepository = Objects.requireNonNull(clusterSocketRepository, "clusterSocketRepository");
     }
 
     @Override
     public void start() {
-        logger.info("{} initialization started.", ClassUtils.simpleClassName(this));
+        logger.info("{} initialization started.", name);
 
         ClusterOption clusterOption = new ClusterOption(true, option.getClusterId(), Role.ROUTER);
 
-        PinpointServerAcceptor serverAcceptor = new PinpointServerAcceptor(clusterOption);
-        serverAcceptor.setMessageListener(new ClusterServerMessageListener(option.getClusterId(), option.getRouteMessageHandler()));
-        serverAcceptor.setServerStreamChannelMessageListener(option.getRouteStreamMessageHandler());
+        ServerOption.Builder serverOptionBuilder = new ServerOption.Builder();
+        serverOptionBuilder.setClusterOption(clusterOption);
+
+        PinpointServerAcceptor serverAcceptor = new PinpointServerAcceptor(serverOptionBuilder.build(), ChannelFilter.BYPASS);
+        serverAcceptor.setMessageListenerFactory(new ClusterServerMessageListenerFactory(option.getClusterId(), option.getRouteMessageHandler()));
+        serverAcceptor.setServerStreamChannelMessageHandler(option.getRouteStreamMessageHandler());
         serverAcceptor.addStateChangeEventHandler(new WebClusterServerChannelStateChangeHandler());
         serverAcceptor.bind(bindAddress);
 
         this.serverAcceptor = serverAcceptor;
 
-        logger.info("{} initialization completed.", ClassUtils.simpleClassName(this));
+        logger.info("{} initialization completed.", name);
     }
 
     @Override
     public void stop() {
-        logger.info("{} destroying started.", ClassUtils.simpleClassName(this));
+        logger.info("{} destroying started.", name);
 
         if (serverAcceptor != null) {
             serverAcceptor.close();
         }
 
-        logger.info("{} destroying completed.", ClassUtils.simpleClassName(this));
+        logger.info("{} destroying completed.", name);
     }
 
-    class ClusterServerMessageListener implements ServerMessageListener {
-
-        private final String clusterId;
-        private final MessageListener routeMessageListener;
-
-        public ClusterServerMessageListener(String clusterId, MessageListener routeMessageListener) {
-            this.clusterId = clusterId;
-            this.routeMessageListener = routeMessageListener;
-        }
+    class WebClusterServerChannelStateChangeHandler extends ServerStateChangeEventHandler {
 
         @Override
-        public void handleSend(SendPacket sendPacket, PinpointSocket pinpointSocket) {
-            logger.info("handleSend packet:{}, remote:{}", sendPacket, pinpointSocket.getRemoteAddress());
-        }
-
-        @Override
-        public void handleRequest(RequestPacket requestPacket, PinpointSocket pinpointSocket) {
-            logger.info("handleRequest packet:{}, remote:{}", requestPacket, pinpointSocket.getRemoteAddress());
-
-            // TODO : need handle control message (looks like getClusterId, ..)
-            routeMessageListener.handleRequest(requestPacket, pinpointSocket);
-        }
-
-        @Override
-        public HandshakeResponseCode handleHandshake(Map properties) {
-            logger.info("handle handShake {}", properties);
-            return HandshakeResponseCode.DUPLEX_COMMUNICATION;
-        }
-
-        @Override
-        public void handlePing(PingPayloadPacket pingPacket, PinpointServer pinpointServer) {
-            logger.info("ping received packet:{}, remote:{}", pingPacket, pinpointServer);
-        }
-
-    }
-
-    class WebClusterServerChannelStateChangeHandler implements ServerStateChangeEventHandler {
-
-        @Override
-        public void eventPerformed(PinpointServer pinpointServer, SocketStateCode stateCode) throws Exception {
-            if (stateCode.isRunDuplex()) {
-                SocketAddress remoteAddress = pinpointServer.getRemoteAddress();
-                clusterSocketRepository.putIfAbsent(remoteAddress, pinpointServer);
-                return;
-            } else if (stateCode.isClosed()) {
-                SocketAddress remoteAddress = pinpointServer.getRemoteAddress();
-                clusterSocketRepository.remove(remoteAddress);
-                return;
+        public void stateUpdated(PinpointServer pinpointServer, SocketStateCode updatedStateCode) {
+            if (updatedStateCode.isRunDuplex()) {
+                Address address = getAddress(pinpointServer);
+                clusterSocketRepository.putIfAbsent(address, pinpointServer);
+            } else if (updatedStateCode.isClosed()) {
+                Address address = getAddress(pinpointServer);
+                clusterSocketRepository.remove(address);
             }
         }
 
-        @Override
-        public void exceptionCaught(PinpointServer pinpointServer, SocketStateCode stateCode, Throwable e) {
+        private Address getAddress(PinpointServer pinpointServer) {
+            final SocketAddress remoteAddress = pinpointServer.getRemoteAddress();
+            if (!(remoteAddress instanceof InetSocketAddress)) {
+                throw new IllegalStateException("unexpected address type:" + remoteAddress);
+            }
+            InetSocketAddress inetSocketAddress = (InetSocketAddress) remoteAddress;
+            return new DefaultAddress(inetSocketAddress.getHostString(), inetSocketAddress.getPort());
         }
 
     }

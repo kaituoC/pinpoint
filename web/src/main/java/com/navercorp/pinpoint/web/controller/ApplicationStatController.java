@@ -15,8 +15,15 @@
  */
 package com.navercorp.pinpoint.web.controller;
 
-import com.navercorp.pinpoint.web.service.stat.*;
+import com.navercorp.pinpoint.web.service.stat.ApplicationActiveTraceService;
+import com.navercorp.pinpoint.web.service.stat.ApplicationCpuLoadService;
+import com.navercorp.pinpoint.web.service.stat.ApplicationDataSourceService;
+import com.navercorp.pinpoint.web.service.stat.ApplicationDirectBufferService;
+import com.navercorp.pinpoint.web.service.stat.ApplicationMemoryService;
+import com.navercorp.pinpoint.web.service.stat.ApplicationResponseTimeService;
 import com.navercorp.pinpoint.web.service.stat.ApplicationStatChartService;
+import com.navercorp.pinpoint.web.service.stat.ApplicationTransactionService;
+import com.navercorp.pinpoint.web.service.stat.ApplicationFileDescriptorService;
 import com.navercorp.pinpoint.web.util.TimeWindow;
 import com.navercorp.pinpoint.web.util.TimeWindowSlotCentricSampler;
 import com.navercorp.pinpoint.web.vo.Range;
@@ -24,6 +31,7 @@ import com.navercorp.pinpoint.web.vo.stat.chart.StatChart;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestMethod;
@@ -44,6 +52,7 @@ public class ApplicationStatController {
         this.applicationStatChartService = applicationStatChartService;
     }
 
+    @PreAuthorize("hasPermission(#applicationId, 'application', 'inspector')")
     @RequestMapping(method = RequestMethod.GET)
     @ResponseBody
     public StatChart getAgentStatChart(@RequestParam("applicationId") String applicationId, @RequestParam("from") long from, @RequestParam("to") long to) {
@@ -106,12 +115,12 @@ public class ApplicationStatController {
     @RequestMapping("/getApplicationStat/dataSource/chart")
     public static class ApplicationDataSourceController {
 
-        private final Logger logger = LoggerFactory.getLogger(ApplicationDataSourceController.this.getClass());
+        private final Logger logger = LoggerFactory.getLogger(this.getClass());
         private ApplicationDataSourceService applicationDataSourceService;
 
         @Autowired
         public ApplicationDataSourceController(ApplicationDataSourceService applicationDataSourceService) {
-            ApplicationDataSourceController.this.applicationDataSourceService = applicationDataSourceService;
+            this.applicationDataSourceService = applicationDataSourceService;
         }
 
         @RequestMapping(method = RequestMethod.GET)
@@ -125,6 +134,24 @@ public class ApplicationStatController {
                 logger.error("error" , e);
                 throw e;
             }
+        }
+    }
+
+    @Controller
+    @RequestMapping("/getApplicationStat/fileDescriptor/chart")
+    public static class ApplicationFileDescriptorController extends ApplicationStatController {
+        @Autowired
+        public ApplicationFileDescriptorController(ApplicationFileDescriptorService applicationFileDescriptorService) {
+            super(applicationFileDescriptorService);
+        }
+    }
+
+    @Controller
+    @RequestMapping("/getApplicationStat/directBuffer/chart")
+    public static class ApplicationDirectBufferController extends ApplicationStatController {
+        @Autowired
+        public ApplicationDirectBufferController(ApplicationDirectBufferService applicationDirectBufferService) {
+            super(applicationDirectBufferService);
         }
     }
 }

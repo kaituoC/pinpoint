@@ -1,11 +1,11 @@
 /*
- * Copyright 2017 NAVER Corp.
+ * Copyright 2018 NAVER Corp.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ * http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -27,7 +27,9 @@ import static com.navercorp.pinpoint.common.trace.AnnotationKeyProperty.VIEW_IN_
 /**
  * @author Taejin Koo
  */
-public class NettyConstants {
+public final class NettyConstants {
+    private NettyConstants() {
+    }
 
     public static final ServiceType SERVICE_TYPE = ServiceTypeFactory.of(9150, "NETTY");
     public static final ServiceType SERVICE_TYPE_INTERNAL = ServiceTypeFactory.of(9151, "NETTY_INTERNAL");
@@ -40,17 +42,6 @@ public class NettyConstants {
 
     public static final String SCOPE = "NETTY_SCOPE";
     public static final String SCOPE_WRITE = "NETTY_WRITE_SCOPE";
-
-
-    public static final String INTERCEPTOR_BASIC = "com.navercorp.pinpoint.bootstrap.interceptor.BasicMethodInterceptor";
-
-    public static final String INTERCEPTOR_CHANNEL_PIPELINE_WRITE = "com.navercorp.pinpoint.plugin.netty.interceptor.ChannelPipelineWriteInterceptor";
-    public static final String INTERCEPTOR_CHANNEL_PROMISE_ADD_LISTENER = "com.navercorp.pinpoint.plugin.netty.interceptor.ChannelPromiseAddListenerInterceptor";
-    public static final String INTERCEPTOR_CHANNEL_PROMISE_NOTIFY = "com.navercorp.pinpoint.plugin.netty.interceptor.ChannelPromiseNotifyInterceptor";
-
-    public static final String INTERCEPTOR_BOOTSTRAP_CONNECT = "com.navercorp.pinpoint.plugin.netty.interceptor.BootstrapConnectInterceptor";
-
-    public static final String INTERCEPTOR_CODEC_HTTP_ENCODER = "com.navercorp.pinpoint.plugin.netty.interceptor.http.HttpEncoderInterceptor";
 
 
     public static final String UNKNOWN_ADDRESS = "Unknown";

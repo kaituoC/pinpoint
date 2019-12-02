@@ -32,7 +32,8 @@
 					data: [],
 					empty: false,
 					forceMax: false,
-					defaultMax: 100
+					defaultMax: 100,
+					defaultMax2: 10000000
 				};
 				var cumulativeGcTime = 0;
 
@@ -58,7 +59,7 @@
 							} else {
 								var yValue = aChartData.charts.y[category[j]["id"]][i][1];
 								if (yValue > 0) {
-									thisData[category[j].key] = yValue;
+									thisData[category[j].key] = yValue === -1 ? null : yValue;
 								}
 							}
 						}
@@ -146,7 +147,7 @@
 							},
 							"legendValueText": "[[value]]ms",
 							"lineColor": "#FF6600",
-							"title": "FGC",
+							"title": "Major GC",
 							"valueField": "FGCTime",
 							"type": "column",
 							"fillAlphas": 0.3,

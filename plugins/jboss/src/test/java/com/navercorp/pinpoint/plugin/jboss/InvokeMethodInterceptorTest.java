@@ -23,8 +23,10 @@ import javax.servlet.http.HttpServletResponse;
 import com.navercorp.pinpoint.bootstrap.config.DefaultProfilerConfig;
 import com.navercorp.pinpoint.bootstrap.config.ProfilerConfig;
 import com.navercorp.pinpoint.bootstrap.context.TraceId;
+import com.navercorp.pinpoint.bootstrap.plugin.RequestRecorderFactory;
 import com.navercorp.pinpoint.profiler.context.id.DefaultTraceId;
 import com.navercorp.pinpoint.profiler.context.module.ApplicationContext;
+import com.navercorp.pinpoint.profiler.context.module.DefaultApplicationContext;
 import com.navercorp.pinpoint.test.MockTraceContextFactory;
 import org.junit.After;
 import org.junit.Before;
@@ -62,7 +64,10 @@ public class InvokeMethodInterceptorTest {
     private final MethodDescriptor descriptor = new DefaultMethodDescriptor("org.apache.catalina.core.StandardHostValve", "invoke", new String[] {
         "org.apache.catalina.connector.Request", "org.apache.catalina.connector.Response" }, new String[] { "request", "response" });
 
-    private ApplicationContext applicationContext;
+    private DefaultApplicationContext applicationContext;
+
+    @Mock
+    private RequestRecorderFactory requestRecorderFactory;
 
     /**
      * Before.
@@ -115,17 +120,17 @@ public class InvokeMethodInterceptorTest {
         when(request.getParameterNames()).thenReturn((Enumeration<String>) enumeration);
 
         TraceContext traceContext = spyTraceContext();
-        final StandardHostValveInvokeInterceptor interceptor = new StandardHostValveInvokeInterceptor(traceContext, descriptor);
+        final StandardHostValveInvokeInterceptor interceptor = new StandardHostValveInvokeInterceptor(traceContext, descriptor, requestRecorderFactory);
 
         interceptor.before("target", new Object[] { request, response });
         interceptor.after("target", new Object[] { request, response }, new Object(), null);
 
-        verify(traceContext, times(1)).newTraceObject();
+        verify(traceContext, times(1)).newAsyncTraceObject();
 
         interceptor.before("target", new Object[] { request, response });
         interceptor.after("target", new Object[] { request, response }, new Object(), null);
 
-        verify(traceContext, times(2)).newTraceObject();
+        verify(traceContext, times(2)).newAsyncTraceObject();
     }
 
     /**
@@ -146,7 +151,7 @@ public class InvokeMethodInterceptorTest {
         when(request.getParameterNames()).thenReturn((Enumeration<String>) enumeration);
 
         TraceContext traceContext = spyTraceContext();
-        final StandardHostValveInvokeInterceptor interceptor = new StandardHostValveInvokeInterceptor(traceContext, descriptor);
+        final StandardHostValveInvokeInterceptor interceptor = new StandardHostValveInvokeInterceptor(traceContext, descriptor, requestRecorderFactory);
         interceptor.before("target", new Object[] { request, response });
         interceptor.after("target", new Object[] { request, response }, new Object(), null);
 
@@ -183,16 +188,16 @@ public class InvokeMethodInterceptorTest {
         when(request.getParameterNames()).thenReturn((Enumeration<String>) enumeration);
 
         TraceContext traceContext = spyTraceContext();
-        final StandardHostValveInvokeInterceptor interceptor = new StandardHostValveInvokeInterceptor(traceContext, descriptor);
+        final StandardHostValveInvokeInterceptor interceptor = new StandardHostValveInvokeInterceptor(traceContext, descriptor, requestRecorderFactory);
 
         interceptor.before("target", new Object[] { request, response });
         interceptor.after("target", new Object[] { request, response }, new Object(), null);
 
-        verify(traceContext, times(1)).continueTraceObject(any(TraceId.class));
+        verify(traceContext, times(1)).continueAsyncTraceObject((any(TraceId.class)));
 
         interceptor.before("target", new Object[] { request, response });
         interceptor.after("target", new Object[] { request, response }, new Object(), null);
 
-        verify(traceContext, times(2)).continueTraceObject(any(TraceId.class));
+        verify(traceContext, times(2)).continueAsyncTraceObject(any(TraceId.class));
     }
 }

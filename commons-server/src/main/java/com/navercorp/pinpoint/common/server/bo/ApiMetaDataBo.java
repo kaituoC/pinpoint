@@ -21,6 +21,8 @@ import com.navercorp.pinpoint.common.util.BytesUtils;
 import com.navercorp.pinpoint.common.server.util.RowKeyUtils;
 import com.navercorp.pinpoint.common.util.TimeUtils;
 
+import java.util.Objects;
+
 /**
  * @author emeroad
  * @author jaehong.kim
@@ -32,18 +34,14 @@ public class ApiMetaDataBo {
     private int apiId;
 
     private String apiInfo;
-    private int lineNumber;
+    private int lineNumber = -1;
     private MethodTypeEnum methodTypeEnum = MethodTypeEnum.DEFAULT;
 
     public ApiMetaDataBo() {
     }
 
     public ApiMetaDataBo(String agentId, long startTime, int apiId) {
-        if (agentId == null) {
-            throw new NullPointerException("agentId must not be null");
-        }
-
-        this.agentId = agentId;
+        this.agentId = Objects.requireNonNull(agentId, "agentId");
         this.startTime = startTime;
         this.apiId = apiId;
     }
@@ -94,10 +92,7 @@ public class ApiMetaDataBo {
     }
 
     public void setMethodTypeEnum(MethodTypeEnum methodTypeEnum) {
-        if (methodTypeEnum == null) {
-            throw new NullPointerException("methodTypeEnum must not be null");
-        }
-        this.methodTypeEnum = methodTypeEnum;
+        this.methodTypeEnum = Objects.requireNonNull(methodTypeEnum, "methodTypeEnum");
     }
     
     public String getDescription() {
@@ -128,12 +123,14 @@ public class ApiMetaDataBo {
 
     @Override
     public String toString() {
-        return "ApiMetaDataBo{" +
-                "agentId='" + agentId + '\'' +
-                ", apiId=" + apiId +
-                ", startTime=" + startTime +
-                ", apiInfo='" + apiInfo + '\'' +
-                ", lineNumber=" + lineNumber +
-                '}';
+        final StringBuilder sb = new StringBuilder("ApiMetaDataBo{");
+        sb.append("agentId='").append(agentId).append('\'');
+        sb.append(", startTime=").append(startTime);
+        sb.append(", apiId=").append(apiId);
+        sb.append(", apiInfo='").append(apiInfo).append('\'');
+        sb.append(", lineNumber=").append(lineNumber);
+        sb.append(", methodTypeEnum=").append(methodTypeEnum);
+        sb.append('}');
+        return sb.toString();
     }
 }

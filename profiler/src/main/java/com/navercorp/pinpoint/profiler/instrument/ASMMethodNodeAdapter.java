@@ -180,7 +180,7 @@ public class ASMMethodNodeAdapter {
 
     public void addDelegator(final String superClassInternalName) {
         if (superClassInternalName == null) {
-            throw new IllegalArgumentException("super class internal name must not be null.");
+            throw new NullPointerException("super class internal name");
         }
 
         final InsnList instructions = this.methodNode.instructions;
@@ -205,13 +205,14 @@ public class ASMMethodNodeAdapter {
 
     public void rename(final String name) {
         if (name == null) {
-            throw new IllegalArgumentException("method name must not be null.");
+            throw new IllegalArgumentException("methodName");
         }
 
-        final ASMMethodInsnNodeRemapper remapper = new ASMMethodInsnNodeRemapper();
-        remapper.addFilter(this.declaringClassInternalName, this.methodNode.name, this.methodNode.desc);
-        remapper.setName(name);
+        final ASMMethodInsnNodeRemapper.Builder remapBuilder = new ASMMethodInsnNodeRemapper.Builder();
+        remapBuilder.addFilter(this.declaringClassInternalName, this.methodNode.name, this.methodNode.desc);
+        remapBuilder.setName(name);
         // change recursive call.
+        ASMMethodInsnNodeRemapper remapper = remapBuilder.build();
         remapMethodInsnNode(remapper);
 
         // change name.

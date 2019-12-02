@@ -60,7 +60,7 @@ public class PinpointClientHandshaker {
     private final AtomicInteger handshakeCount;
 
     private final Timer handshakerTimer;
-    private final int retryInterval;
+    private final long retryInterval;
     private final int maxHandshakeCount;
     
     private final Object lock = new Object();
@@ -69,21 +69,24 @@ public class PinpointClientHandshaker {
 
     private final String id = ClassUtils.simpleClassNameAndHashCodeString(this);
 
+    private final Map<String, Object> handshakeData;
 
-    public PinpointClientHandshaker(Timer handshakerTimer, int retryInterval, int maxHandshakeCount) {
-        Assert.requireNonNull(handshakerTimer, "handshakerTimer must not be null.");
+
+    public PinpointClientHandshaker(Map<String, Object> handshakeData, Timer handshakerTimer, long retryInterval, int maxHandshakeCount) {
         Assert.isTrue(retryInterval > 0, "retryInterval must greater than zero.");
         Assert.isTrue(maxHandshakeCount > 0, "maxHandshakeCount must greater than zero.");
         
         this.state = new AtomicInteger(STATE_INIT);
-        this.handshakerTimer = handshakerTimer;
+        this.handshakerTimer = Assert.requireNonNull(handshakerTimer, "handshakerTimer");
+        this.handshakeData = Assert.requireNonNull(handshakeData, "handshakeData");
+
         this.retryInterval = retryInterval;
         this.maxHandshakeCount = maxHandshakeCount;
-        
+
         this.handshakeCount = new AtomicInteger(0);
     }
 
-    public void handshakeStart(Channel channel, Map<String, Object> handshakeData) {
+    public void handshakeStart(Channel channel) {
         logger.info("{} handshakeStart() started. channel:{}", id, channel);
         
         if (channel == null) {
@@ -103,7 +106,7 @@ public class PinpointClientHandshaker {
         
         HandshakeJob handshakeJob = null;
         try {
-            handshakeJob = createHandshakeJob(channel, handshakeData);
+            handshakeJob = createHandshakeJob(channel);
         } catch (Exception e) {
             logger.warn("{} create HandshakeJob failed. caused:{}", id, e.getMessage(), e);
         }
@@ -119,9 +122,10 @@ public class PinpointClientHandshaker {
         logger.info("{} handshakeStart() completed. channel:{}, data:{}", id, channel, handshakeData);
     }
 
-    private HandshakeJob createHandshakeJob(Channel channel, Map<String, Object> handshakeData) throws ProtocolException {
+    private HandshakeJob createHandshakeJob(Channel channel) throws ProtocolException {
         byte[] payload = ControlMessageEncodingUtils.encode(handshakeData);
-        ControlHandshakePacket handshakePacket = new ControlHandshakePacket(payload);
+
+        ControlHandshakePacket handshakePacket = new ControlHandshakePacket(0, payload);
 
         HandshakeJob handshakeJob = new HandshakeJob(channel, handshakePacket);
         return handshakeJob;
@@ -177,7 +181,7 @@ public class PinpointClientHandshaker {
     private Map decode(ControlHandshakeResponsePacket message) {
         byte[] payload = message.getPayload();
         if (payload == null) {
-            return Collections.EMPTY_MAP;
+            return Collections.emptyMap();
         }
 
         try {
@@ -187,11 +191,11 @@ public class PinpointClientHandshaker {
 
         }
 
-        return Collections.EMPTY_MAP;
+        return Collections.emptyMap();
     }
 
     private HandshakeResponseCode getResponseCode(Map handshakeResponse) {
-        if (handshakeResponse == Collections.EMPTY_MAP) {
+        if (handshakeResponse == Collections.emptyMap()) {
             return HandshakeResponseCode.PROTOCOL_ERROR;
         }
 
@@ -202,7 +206,7 @@ public class PinpointClientHandshaker {
     }
 
     private ClusterOption getClusterOption(Map handshakeResponse) {
-        if (handshakeResponse == Collections.EMPTY_MAP) {
+        if (handshakeResponse == Collections.emptyMap()) {
             return ClusterOption.DISABLE_CLUSTER_OPTION;
         }
 
